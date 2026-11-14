@@ -1,3 +1,6 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -9,6 +12,10 @@ import User from './models/User.js';
 import { seedDatabase } from './seed/seedData.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../client/dist');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -43,7 +50,16 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/emails', emailRoutes);
 
-// 404 handler
+// Static Production Frontend Hosting (if built)
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.url.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
+// 404 handler for unmatched API routes
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'API route not found' });
 });

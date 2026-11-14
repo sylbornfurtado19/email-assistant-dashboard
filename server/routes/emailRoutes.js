@@ -6,24 +6,21 @@ const router = express.Router();
 
 /**
  * GET /api/emails
- * Fetches email threads by segment, status, or search term.
+ * Fetches email threads by segment, status, search term, and sort order.
  */
 router.get('/', async (req, res) => {
   try {
-    const { segment = 'all', search = '', status = 'active' } = req.query;
+    const { segment = 'all', search = '', status = 'active', sort = 'newest' } = req.query;
 
     const query = {};
 
-    // Filter by completed / active status
+    // Filter by completed / active / archived status
     if (status === 'completed') {
       query.isCompleted = true;
     } else if (status === 'archived') {
       query.isArchived = true;
     } else if (segment !== 'completed' && segment !== 'archived') {
       query.isArchived = false;
-      if (segment !== 'all_with_completed') {
-        // Active view default
-      }
     }
 
     // Segment filters
@@ -76,7 +73,19 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const threads = await EmailThread.find(query).sort({ updatedAt: -1, createdAt: -1 });
+    // Sort order definition
+    let sortObj = { updatedAt: -1, createdAt: -1 };
+    if (sort === 'oldest') {
+      sortObj = { createdAt: 1 };
+    } else if (sort === 'confidence_desc') {
+      sortObj = { confidence: -1 };
+    } else if (sort === 'confidence_asc') {
+      sortObj = { confidence: 1 };
+    } else if (sort === 'priority') {
+      sortObj = { isImportant: -1, updatedAt: -1 };
+    }
+
+    const threads = await EmailThread.find(query).sort(sortObj);
     return res.json({ success: true, count: threads.length, threads });
   } catch (err) {
     console.error('Error fetching email threads:', err);
@@ -97,6 +106,9 @@ router.get('/stats', async (req, res) => {
       clientToReply,
       needsReview,
       upcomingMeetings,
+      waitingForResponse,
+      important,
+      noReplyNeeded,
       totalActive,
       completed,
     ] = await Promise.all([
@@ -125,6 +137,18 @@ router.get('/stats', async (req, res) => {
         $or: [{ category: 'meetings' }, { extractedEvent: { $ne: null } }],
         isArchived: false,
       }),
+      EmailThread.countDocuments({
+        category: 'waiting_for_response',
+        isArchived: false,
+      }),
+      EmailThread.countDocuments({
+        isImportant: true,
+        isArchived: false,
+      }),
+      EmailThread.countDocuments({
+        classification: 'no_reply_needed',
+        isArchived: false,
+      }),
       EmailThread.countDocuments({ isArchived: false }),
       EmailThread.countDocuments({ isCompleted: true }),
     ]);
@@ -138,6 +162,9 @@ router.get('/stats', async (req, res) => {
         clientToReply,
         needsReview,
         upcomingMeetings,
+        waitingForResponse,
+        important,
+        noReplyNeeded,
         totalActive,
         completed,
       },
@@ -171,7 +198,7 @@ router.get('/:id', async (req, res) => {
 
 /**
  * POST /api/emails/simulate
- * Simulates an incoming email, runs live AI classification, and saves to database.
+ * Simulates a brand new incoming email, runs live AI classification, and saves to database.
  */
 router.post('/simulate', async (req, res) => {
   try {
@@ -212,12 +239,15 @@ router.post('/simulate', async (req, res) => {
       aiReason: aiResult.aiReason,
       summary: aiResult.summary,
       whyClientNeeded: aiResult.whyClientNeeded,
+      suggestedAction: aiResult.suggestedAction || '',
       category: aiResult.category,
       extractedEvent: aiResult.extractedEvent,
       isRead: false,
       isImportant: aiResult.classification === 'client_to_reply',
       isArchived: false,
       isCompleted: false,
+      isOverridden: false,
+      originalClassification: aiResult.classification,
     });
 
     return res.status(201).json({
@@ -233,8 +263,76 @@ router.post('/simulate', async (req, res) => {
 });
 
 /**
+ * POST /api/emails/:id/messages
+ * Simulates a new incoming message on an EXISTING conversation thread and triggers AI reclassification.
+ */
+router.post('/:id/messages', async (req, res) => {
+  try {
+    const {
+      senderName = 'External Partner',
+      senderEmail = 'partner@external.io',
+      body,
+      isClient = false,
+    } = req.body;
+
+    if (!body || !body.trim()) {
+      return res.status(400).json({ success: false, error: 'Message body is required' });
+    }
+
+    const thread = await EmailThread.findById(req.params.id);
+    if (!thread) {
+      return res.status(404).json({ success: false, error: 'Thread not found' });
+    }
+
+    const incomingMsg = {
+      senderName,
+      senderEmail,
+      body: body.trim(),
+      timestamp: new Date(),
+      isClient: !!isClient,
+    };
+
+    // Reclassify with updated message stream
+    const { aiResult, updatedMessages } = await AIService.reclassifyThread(thread, incomingMsg);
+
+    thread.messages = updatedMessages;
+    thread.classification = aiResult.classification;
+    thread.confidence = aiResult.confidence;
+    thread.aiReason = aiResult.aiReason;
+    thread.summary = aiResult.summary;
+    thread.whyClientNeeded = aiResult.whyClientNeeded;
+    thread.suggestedAction = aiResult.suggestedAction || thread.suggestedAction;
+    thread.category = aiResult.category;
+    if (aiResult.extractedEvent) {
+      thread.extractedEvent = aiResult.extractedEvent;
+    }
+
+    // New incoming external message unmarks completed & marks unread
+    if (!isClient) {
+      thread.isCompleted = false;
+      thread.isRead = false;
+    }
+
+    // Reset override if new message changes context
+    thread.isOverridden = false;
+
+    await thread.save();
+
+    return res.json({
+      success: true,
+      message: 'New message added and thread reclassified by AI',
+      thread,
+      aiAnalysis: aiResult,
+    });
+  } catch (err) {
+    console.error('Error adding message and reclassifying thread:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * PATCH /api/emails/:id/override
- * Manual classification override by assistant.
+ * Manual classification override by assistant, preserving human vs. AI audit distinction.
  */
 router.patch('/:id/override', async (req, res) => {
   try {
@@ -248,14 +346,28 @@ router.patch('/:id/override', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Thread not found' });
     }
 
+    // Preserve audit distinction
+    if (!thread.isOverridden) {
+      thread.originalClassification = thread.classification;
+    }
+    thread.isOverridden = true;
+    thread.overriddenBy = 'Marcus Chen (Assistant)';
+    thread.overriddenAt = new Date();
+
     thread.classification = classification;
     thread.confidence = 100; // Human verified
-    thread.aiReason = aiReason || `Manually overridden by Assistant to ${classification.replace(/_/g, ' ')}.`;
+    thread.aiReason = aiReason || `Manually overridden by Assistant Marcus Chen to ${classification.replace(/_/g, ' ')}.`;
 
     if (classification === 'client_to_reply' && !thread.whyClientNeeded) {
       thread.whyClientNeeded = 'Manually designated by assistant for executive review.';
+      thread.suggestedAction = 'Executive review and decision required from Elena Vance.';
     } else if (classification !== 'client_to_reply') {
       thread.whyClientNeeded = '';
+      if (classification === 'assistant_to_reply') {
+        thread.suggestedAction = 'Assistant Marcus Chen to handle routine response.';
+      } else if (classification === 'no_reply_needed') {
+        thread.suggestedAction = 'Informational only; no further response necessary.';
+      }
     }
 
     await thread.save();
@@ -282,6 +394,7 @@ router.patch('/:id/delegate', async (req, res) => {
     thread.delegationNote = delegationNote.trim();
     thread.aiReason = `Delegated by Elena to Marcus: "${delegationNote.trim() || 'Please handle this.'}"`;
     thread.whyClientNeeded = ''; // Handled by delegation
+    thread.suggestedAction = `Marcus: Follow Elena's instructions: "${delegationNote.trim() || 'Please handle this.'}"`;
 
     await thread.save();
     return res.json({
@@ -352,6 +465,7 @@ router.post('/:id/draft', async (req, res) => {
 /**
  * POST /api/emails/:id/send
  * Sends reply message (appends to thread history) and optionally marks completed.
+ * Simulated dispatch indicator returned.
  */
 router.post('/:id/send', async (req, res) => {
   try {
@@ -389,7 +503,8 @@ router.post('/:id/send', async (req, res) => {
     await thread.save();
     return res.json({
       success: true,
-      message: 'Reply sent successfully and logged in thread history',
+      simulated: true,
+      message: 'Reply logged to conversation thread (Simulated Outbox - no live SMTP contact)',
       thread,
     });
   } catch (err) {
@@ -400,7 +515,7 @@ router.post('/:id/send', async (req, res) => {
 
 /**
  * POST /api/emails/ask-ai
- * Slide-over natural language inbox assistant Q&A.
+ * Slide-over natural language inbox assistant Q&A using live database threads.
  */
 router.post('/ask-ai', async (req, res) => {
   try {
@@ -420,4 +535,3 @@ router.post('/ask-ai', async (req, res) => {
 });
 
 export default router;
-

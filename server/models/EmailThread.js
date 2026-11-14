@@ -75,6 +75,26 @@ const emailThreadSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    suggestedAction: {
+      type: String,
+      default: '',
+    },
+    isOverridden: {
+      type: Boolean,
+      default: false,
+    },
+    originalClassification: {
+      type: String,
+      default: null,
+    },
+    overriddenBy: {
+      type: String,
+      default: null,
+    },
+    overriddenAt: {
+      type: Date,
+      default: null,
+    },
     category: {
       type: String,
       enum: ['meetings', 'action_required', 'waiting_for_response', 'important', 'general'],

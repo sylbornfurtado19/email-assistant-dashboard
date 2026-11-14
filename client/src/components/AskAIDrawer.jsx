@@ -12,24 +12,28 @@ import {
   AlertCircle,
   FileText,
   UserCheck,
+  User,
+  Inbox,
 } from 'lucide-react';
 
 const SUGGESTED_QUERIES = [
-  'What am I waiting on?',
-  'Why is this assigned to the client?',
-  'Show all upcoming meetings',
+  'What am I waiting for?',
+  'Which emails require client approval?',
+  'Why has this email been assigned to the client?',
+  'What meetings are coming up?',
   'What needs urgent review?',
+  'Summarize active high-stakes threads',
 ];
 
 export default function AskAIDrawer() {
-  const { isAskAIOpen, setIsAskAIOpen, threads, selectThread, setActiveRole } = useApp();
+  const { isAskAIOpen, setIsAskAIOpen, threads, selectThread, setActiveRole, API_BASE } = useApp();
 
   const [inputQuery, setInputQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: "Hello Marcus & Elena! I'm your inbox AI Copilot. Ask me anything about your current workload, blockers, client assignments, or upcoming meetings.",
+      text: "Hello Elena & Marcus! I'm your AetherInbox AI Copilot. Ask me anything about your current workload, pending client decisions, waiting threads, or upcoming meetings.",
       matchingThreads: [],
       suggestedActions: [],
     },
@@ -47,7 +51,7 @@ export default function AskAIDrawer() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/emails/ask-ai', {
+      const res = await fetch(`${API_BASE}/api/emails/ask-ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
@@ -56,7 +60,7 @@ export default function AskAIDrawer() {
       if (data.success && data.response) {
         // Resolve matching thread objects from the ID list
         const matched = (data.response.matchingThreadIds || [])
-          .map((id) => threads.find((t) => t._id === id))
+          .map((id) => threads.find((t) => t._id.toString() === id.toString()))
           .filter(Boolean);
 
         setMessages((prev) => [
@@ -75,7 +79,7 @@ export default function AskAIDrawer() {
         ...prev,
         {
           sender: 'ai',
-          text: 'Sorry, I encountered an issue inspecting your inbox. Please check your network or try again.',
+          text: 'Sorry, I encountered an issue querying your inbox data. Please check your connection or try again.',
           matchingThreads: [],
           suggestedActions: [],
         },
@@ -87,6 +91,9 @@ export default function AskAIDrawer() {
 
   const handleSelectThread = (thread) => {
     selectThread(thread);
+    if (thread.classification === 'client_to_reply') {
+      // Role can remain or switch according to user preference
+    }
     setIsAskAIOpen(false);
   };
 
@@ -94,35 +101,35 @@ export default function AskAIDrawer() {
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex justify-end">
       <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 border-l border-slate-200">
         {/* Drawer Header */}
-        <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 text-white flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center text-amber-300">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-amber-300">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-bold text-sm tracking-tight">Inbox AI Copilot</h3>
-              <p className="text-[11px] text-indigo-200">Natural Language Inbox Intelligence</p>
+              <p className="text-[11px] text-slate-300">Natural Language Intelligence on Real Inbox Data</p>
             </div>
           </div>
           <button
             onClick={() => setIsAskAIOpen(false)}
-            className="p-1 text-indigo-200 hover:text-white hover:bg-white/10 rounded-lg transition"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Suggested Queries Chips */}
+        {/* Suggested Prompts Carousel / Chips */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 overflow-x-auto">
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">
-            Quick Prompts
+            Suggested Prompts
           </p>
           <div className="flex flex-wrap gap-1.5">
             {SUGGESTED_QUERIES.map((q, i) => (
               <button
                 key={i}
                 onClick={() => handleAsk(q)}
-                className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 rounded-lg transition whitespace-nowrap shadow-2xs"
+                className="text-[11px] px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg transition whitespace-nowrap shadow-2xs"
               >
                 {q}
               </button>
@@ -140,36 +147,36 @@ export default function AskAIDrawer() {
               <div
                 className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed ${
                   msg.sender === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-none shadow-xs'
+                    ? 'bg-slate-900 text-white rounded-br-none shadow-2xs'
                     : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200/80'
                 }`}
               >
                 <div className="whitespace-pre-line font-normal">{msg.text}</div>
               </div>
 
-              {/* Matching Thread Cards if available */}
+              {/* Matching Referenced Thread Cards */}
               {msg.matchingThreads && msg.matchingThreads.length > 0 && (
                 <div className="mt-2.5 space-y-2 w-full pl-1">
-                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Referenced Threads ({msg.matchingThreads.length}):
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Referenced Inbox Threads ({msg.matchingThreads.length}):
                   </p>
                   {msg.matchingThreads.map((thread) => (
                     <button
                       key={thread._id}
                       onClick={() => handleSelectThread(thread)}
-                      className="w-full text-left p-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-xs rounded-xl transition flex items-start justify-between group"
+                      className="w-full text-left p-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-2xs rounded-xl transition flex items-start justify-between group"
                     >
                       <div className="flex-1 min-w-0 pr-2">
                         <div className="flex items-center space-x-1.5 mb-1">
                           <span
-                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded-sm ${
+                            className={`px-1.5 py-0.2 text-[10px] font-medium rounded-md border ${
                               thread.classification === 'client_to_reply'
-                                ? 'bg-amber-100 text-amber-800'
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
                                 : thread.classification === 'assistant_to_reply'
-                                ? 'bg-indigo-100 text-indigo-800'
+                                ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                                 : thread.classification === 'needs_review'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-slate-100 text-slate-700'
+                                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
                             {thread.classification.replace(/_/g, ' ')}
@@ -191,7 +198,7 @@ export default function AskAIDrawer() {
           {loading && (
             <div className="flex items-center space-x-2 text-slate-400 text-xs py-2 pl-2">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-              <span>Analyzing inbox telemetry...</span>
+              <span>Analyzing live inbox threads...</span>
             </div>
           )}
         </div>
@@ -210,12 +217,12 @@ export default function AskAIDrawer() {
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
               placeholder="Ask about blockers, meetings, assignments..."
-              className="flex-1 px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
             />
             <button
               type="submit"
               disabled={loading || !inputQuery.trim()}
-              className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition disabled:opacity-40"
+              className="p-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition disabled:opacity-40"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -225,4 +232,3 @@ export default function AskAIDrawer() {
     </div>
   );
 }
-

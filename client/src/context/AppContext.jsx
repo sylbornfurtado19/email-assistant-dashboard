@@ -1,17 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
-  // Current user and role state
+  // Current user and active role
   const [user, setUser] = useState(null);
   const [activeRole, setActiveRoleState] = useState('assistant'); // 'assistant' | 'client'
 
-  // Email threads and selection
+  // Email threads and filters
   const [threads, setThreads] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest' | 'confidence_desc' | 'confidence_asc' | 'priority'
 
   // KPIs and Stats
   const [stats, setStats] = useState({
@@ -21,11 +24,14 @@ export const AppProvider = ({ children }) => {
     clientToReply: 0,
     needsReview: 0,
     upcomingMeetings: 0,
+    waitingForResponse: 0,
+    important: 0,
+    noReplyNeeded: 0,
     totalActive: 0,
     completed: 0,
   });
 
-  // UI state
+  // UI modal / drawer state
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -46,10 +52,10 @@ export const AppProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Fetch current user and initialize
+  // Fetch current user and active role
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch(`${API_BASE}/api/auth/me`);
       const data = await res.json();
       if (data.success && data.user) {
         setUser(data.user);
@@ -66,7 +72,7 @@ export const AppProvider = ({ children }) => {
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const res = await fetch('/api/emails/stats');
+      const res = await fetch(`${API_BASE}/api/emails/stats`);
       const data = await res.json();
       if (data.success && data.stats) {
         setStats(data.stats);
@@ -86,8 +92,9 @@ export const AppProvider = ({ children }) => {
         const params = new URLSearchParams();
         if (selectedSegment) params.append('segment', selectedSegment);
         if (searchQuery) params.append('search', searchQuery);
+        if (sortBy) params.append('sort', sortBy);
 
-        const res = await fetch(`/api/emails?${params.toString()}`);
+        const res = await fetch(`${API_BASE}/api/emails?${params.toString()}`);
         const data = await res.json();
         if (data.success && data.threads) {
           setThreads(data.threads);
@@ -97,7 +104,6 @@ export const AppProvider = ({ children }) => {
             const found = data.threads.find((t) => t._id === preserveSelectedId);
             if (found) setSelectedThread(found);
           } else if (data.threads.length > 0) {
-            // If currently selected thread is still in list, keep it, otherwise pick first
             setSelectedThread((prev) => {
               if (prev && data.threads.some((t) => t._id === prev._id)) {
                 return data.threads.find((t) => t._id === prev._id);
@@ -115,7 +121,7 @@ export const AppProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [selectedSegment, searchQuery, addToast]
+    [selectedSegment, searchQuery, sortBy, addToast]
   );
 
   // Initial load
@@ -132,15 +138,15 @@ export const AppProvider = ({ children }) => {
   const setActiveRole = async (role) => {
     setActiveRoleState(role);
     try {
-      await fetch('/api/auth/role', {
+      await fetch(`${API_BASE}/api/auth/role`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
       });
       addToast(
         role === 'assistant'
-          ? 'Switched to Assistant View (Marcus Chen)'
-          : 'Switched to Executive Client View (Elena Vance)',
+          ? 'Switched to Assistant View (Marcus Chen, EA)'
+          : 'Switched to Executive Client View (Elena Vance, CEO)',
         'info'
       );
     } catch (err) {
@@ -152,12 +158,11 @@ export const AppProvider = ({ children }) => {
   const selectThread = async (thread) => {
     setSelectedThread(thread);
     if (thread && !thread.isRead) {
-      // Optimistic update
       setThreads((prev) =>
         prev.map((t) => (t._id === thread._id ? { ...t, isRead: true } : t))
       );
       try {
-        await fetch(`/api/emails/${thread._id}`);
+        await fetch(`${API_BASE}/api/emails/${thread._id}`);
         fetchStats();
       } catch (err) {
         console.error('Error marking thread as read:', err);
@@ -165,17 +170,17 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Manual classification override
+  // Manual classification override by assistant
   const overrideClassification = async (threadId, newClassification, reason = '') => {
     try {
-      const res = await fetch(`/api/emails/${threadId}/override`, {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/override`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ classification: newClassification, aiReason: reason }),
       });
       const data = await res.json();
       if (data.success && data.thread) {
-        addToast(`Updated classification to ${newClassification.replace(/_/g, ' ')}`, 'success');
+        addToast(`Classification updated to ${newClassification.replace(/_/g, ' ')}`, 'success');
         setThreads((prev) =>
           prev.map((t) => (t._id === threadId ? data.thread : t))
         );
@@ -193,7 +198,7 @@ export const AppProvider = ({ children }) => {
   // Client delegates thread to Assistant
   const delegateThread = async (threadId, delegationNote = '') => {
     try {
-      const res = await fetch(`/api/emails/${threadId}/delegate`, {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/delegate`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delegationNote }),
@@ -215,11 +220,11 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Toggle thread status flags
+  // Toggle thread status flags (isCompleted, isRead, isImportant, isArchived)
   const toggleThreadStatus = async (threadId, field, value) => {
     try {
       const payload = { [field]: value };
-      const res = await fetch(`/api/emails/${threadId}/status`, {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -235,6 +240,10 @@ export const AppProvider = ({ children }) => {
         fetchStats();
         if (field === 'isCompleted') {
           addToast(value ? 'Thread marked as handled' : 'Thread reopened', 'success');
+        } else if (field === 'isArchived') {
+          addToast(value ? 'Thread archived' : 'Thread unarchived', 'info');
+        } else if (field === 'isRead') {
+          addToast(value ? 'Marked as read' : 'Marked as unread', 'info');
         }
       }
     } catch (err) {
@@ -243,10 +252,10 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Simulate incoming email
+  // Simulate brand new incoming email
   const simulateEmail = async (emailData) => {
     try {
-      const res = await fetch('/api/emails/simulate', {
+      const res = await fetch(`${API_BASE}/api/emails/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(emailData),
@@ -266,10 +275,38 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Generate AI Draft
+  // Append incoming reply message to an existing thread (dynamic AI reclassification)
+  const appendMessageToThread = async (threadId, messageData) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData),
+      });
+      const data = await res.json();
+      if (data.success && data.thread) {
+        addToast(`New reply received: thread reclassified to ${data.thread.classification.replace(/_/g, ' ')} (${data.thread.confidence}% AI)`, 'success');
+        setThreads((prev) =>
+          prev.map((t) => (t._id === threadId ? data.thread : t))
+        );
+        if (selectedThread?._id === threadId) {
+          setSelectedThread(data.thread);
+        }
+        fetchStats();
+        setIsSimulateOpen(false);
+        return data.thread;
+      }
+    } catch (err) {
+      console.error('Error appending message to thread:', err);
+      addToast('Failed to append message to thread', 'error');
+      throw err;
+    }
+  };
+
+  // Generate AI Draft reply
   const generateDraft = async (threadId, { role = activeRole, instructions = '', tone = 'professional' }) => {
     try {
-      const res = await fetch(`/api/emails/${threadId}/draft`, {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role, instructions, tone }),
@@ -289,10 +326,10 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Send reply
+  // Send reply (simulated sending)
   const sendReply = async (threadId, { body, markCompleted = true, senderName, senderEmail, isClient }) => {
     try {
-      const res = await fetch(`/api/emails/${threadId}/send`, {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -300,12 +337,12 @@ export const AppProvider = ({ children }) => {
           markCompleted,
           senderName: senderName || (activeRole === 'client' ? 'Elena Vance' : 'Marcus Chen'),
           senderEmail: senderEmail || (activeRole === 'client' ? 'elena.vance@vancetech.io' : 'marcus.chen@vancetech.io'),
-          isClient: activeRole === 'client',
+          isClient: typeof isClient === 'boolean' ? isClient : activeRole === 'client',
         }),
       });
       const data = await res.json();
       if (data.success && data.thread) {
-        addToast('Reply sent and logged in thread', 'success');
+        addToast('Reply logged to thread history (Simulated Outbox)', 'success');
         setThreads((prev) =>
           prev.map((t) => (t._id === threadId ? data.thread : t))
         );
@@ -320,17 +357,17 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Connect provider account
+  // Connect provider account (simulated OAuth)
   const connectAccount = async (provider, email) => {
     try {
-      const res = await fetch('/api/auth/connect', {
+      const res = await fetch(`${API_BASE}/api/auth/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, email }),
       });
       const data = await res.json();
       if (data.success) {
-        addToast(`Connected ${provider.toUpperCase()} account successfully`, 'success');
+        addToast(`Connected ${provider.toUpperCase()} account (Simulated OAuth)`, 'success');
         fetchCurrentUser();
       }
     } catch (err) {
@@ -342,7 +379,7 @@ export const AppProvider = ({ children }) => {
   // Disconnect provider account
   const disconnectAccount = async (provider) => {
     try {
-      const res = await fetch('/api/auth/disconnect', {
+      const res = await fetch(`${API_BASE}/api/auth/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider }),
@@ -357,10 +394,10 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Reset workspace
+  // Reset workspace to pristine 12 seed threads
   const resetWorkspace = async () => {
     try {
-      const res = await fetch('/api/auth/reset-demo', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/auth/reset-demo`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         addToast('Workspace restored to pristine demo dataset', 'success');
@@ -377,6 +414,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider
       value={{
+        API_BASE,
         user,
         activeRole,
         setActiveRole,
@@ -387,6 +425,8 @@ export const AppProvider = ({ children }) => {
         setSelectedSegment,
         searchQuery,
         setSearchQuery,
+        sortBy,
+        setSortBy,
         stats,
         loading,
         statsLoading,
@@ -403,6 +443,7 @@ export const AppProvider = ({ children }) => {
         delegateThread,
         toggleThreadStatus,
         simulateEmail,
+        appendMessageToThread,
         generateDraft,
         sendReply,
         connectAccount,
@@ -424,4 +465,3 @@ export const useApp = () => {
   }
   return context;
 };
-

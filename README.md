@@ -1,169 +1,240 @@
 # 🚀 AetherInbox AI — Executive & Personal Assistant Email Management Suite
 
-An enterprise-grade, full-stack **MERN** prototype of an **AI-Powered Personal Assistant Email Management Dashboard** tailored for high-performing Executive Assistants (e.g. Marcus Chen) managing an executive Client's inbox (e.g. Elena Vance, CEO).
-
-Built with **Node.js, Express, MongoDB (with automatic in-memory zero-config fallback), React 18, Vite, Tailwind CSS, Lucide Icons, and LLM Copilot integration (Gemini / OpenAI with smart rule-based fallback)**.
-
----
-
-## 🌟 Key Architecture & Capabilities
-
-### 1. Two Dedicated, Specialized Perspectives
-- **Assistant View (Marcus Chen):**
-  - **KPI Header:** Instant breakdown of Unread count, Action Required, Assistant to Reply, Client to Reply, and Upcoming Meetings.
-  - **Smart Segment Filters:** One-click filtering across `Assistant to Reply`, `Client to Reply`, `Needs Review (<75% AI Confidence)`, `Meetings & Appointments`, `Waiting for Response`, `Important`, and `Completed`.
-  - **Scannable Thread Cards:** Senders, time ago, subject, AI executive summary snippet, responsibility badges, confidence meters, and event tags.
-  - **Extracted Calendar Event Banner:** Automatically isolates event title, date, time, and location with one-click Google Calendar synchronization.
-  - **AI Intelligence Triage Card:** Explains the exact rationale for classification, shows "Why Client Needed" (if applicable), and provides a **Manual Classification Override** dropdown with immediate updates.
-  - **Full Thread History:** Collapsible multi-message history with distinct visual distinction between client messages (Elena in purple) and external senders.
-  - **Interactive AI Draft & Approve Composer:** Allows the assistant to select tone (*Professional, Warm, Direct, Firm*), enter custom guiding notes, generate AI drafts on behalf of the client, edit, and click **"Send & Mark Handled"**.
-
-- **Executive Client View (Elena Vance):**
-  - **Focus Mode:** Filtered down strictly to `client_to_reply` items.
-  - **Highlighted "Why Your Attention is Needed":** Prominent callout explaining the exact business reason why the CEO's personal authorization is required (e.g. *"Requires legal signatory authorization and valuation approval directly from CEO Elena"*).
-  - **One-Click Delegation to Assistant:** Elena can enter a quick note (e.g., *"Marcus, decline politely and suggest next quarter"*) and click **"Confirm Delegation"**—the thread immediately flips to `assistant_to_reply` with the delegation note attached.
-  - **Mark Handled:** Resolves items with 1 click.
-  - **Direct Executive Reply:** Elena can also compose and send a direct CEO signoff.
-
-### 2. Multi-Modal AI Engine (`aiService.js`)
-- **Live Classification & Confidence Scoring:** Analyzes full thread history and assigns one of 4 states:
-  - `assistant_to_reply`
-  - `client_to_reply`
-  - `needs_review` (strictly enforced whenever confidence is `< 75%`)
-  - `no_reply_needed`
-- **Calendar Event Detection:** Extracts dates, times, and venues from conversation text.
-- **Tailored Role-Based Reply Drafting:**
-  - When acting as `assistant`: Writes on behalf of Elena Vance (*"On behalf of Elena Vance, thank you for reaching out..."*).
-  - When acting as `client`: Writes in first person (*"Thanks for following up on this..."*).
-- **Inbox Natural Language Copilot ("Ask AI"):** Slide-over assistant that answers questions like *"What am I waiting on?"*, *"Why is this assigned to the client?"*, or *"Show all upcoming meetings"*, and returns clickable references that navigate directly to matching threads.
-- **Fail-Safe Operation:** Works with live Google Gemini / OpenAI keys, or automatically uses the built-in intelligent rule engine so the demo **never halts or crashes** even without API credentials.
+> **Humanity Founders AI Full-Stack Engineer Challenge Submission**  
+> **Candidate Repository**: [sylbornfurtado19/email-assistant-dashboard](https://github.com/sylbornfurtado19/email-assistant-dashboard)  
+> **Stack**: React 18, Vite, Tailwind CSS, Lucide Icons, Node.js, Express.js, MongoDB / In-Memory MongoDB Server, Google Gemini 1.5/2.0 API + Deterministic Fallback Engine.
 
 ---
 
-## 📁 Monorepo Folder Structure
+## 🌟 Executive Summary & Problem Solved
 
-```
-email-assistant-dashboard/
-├── package.json                   # Root orchestrator with concurrent run scripts
-├── README.md                      # Documentation & instructions
-│
-├── server/
-│   ├── config/
-│   │   └── db.js                  # Resilient MongoDB connection with MongoMemoryServer fallback
-│   ├── models/
-│   │   ├── User.js                # Executive & Assistant suite profile, OAuth accounts
-│   │   └── EmailThread.js         # Threads, multi-message history, AI classification, events
-│   ├── services/
-│   │   └── aiService.js           # Gemini API SDK + Intelligent Rule-Based Engine
-│   ├── routes/
-│   │   ├── authRoutes.js          # Demo login, account sync simulation, role switching
-│   │   └── emailRoutes.js         # Segmented fetching, simulate incoming mail, delegate, draft, ask AI
-│   ├── seed/
-│   │   └── seedData.js            # 12 realistic multi-message email threads covering all classifications
-│   ├── server.js                  # Express backend entry point
-│   ├── .env                       # Backend environment configuration
-│   └── package.json
-│
-└── client/
-    ├── src/
-    │   ├── context/
-    │   │   └── AppContext.jsx     # Centralized state for user, active role, threads, and stats
-    │   ├── components/
-    │   │   ├── Navbar.jsx         # Role Switcher, Account Sync Pill, Action Triggers
-    │   │   ├── OnboardingModal.jsx # Simulated OAuth flow for Gmail & Outlook
-    │   │   ├── AssistantDashboard.jsx # 3-pane layout + KPI strip + AI Composer
-    │   │   ├── ClientView.jsx     # Minimalist executive feed with Delegation
-    │   │   ├── SimulateEmailModal.jsx # 3 one-click presets + live AI classifier
-    │   │   └── AskAIDrawer.jsx    # Slide-over natural language inbox assistant
-    │   ├── App.jsx                # Main layout + toast notifications
-    │   ├── main.jsx
-    │   └── index.css              # Tailwind directives & styles
-    ├── vite.config.js
-    ├── tailwind.config.js
-    └── package.json
+High-profile executives (e.g. **Elena Vance, CEO**) are overwhelmed by email volume, while their executive assistants (e.g. **Marcus Chen, Chief of Staff / EA**) need an efficient, high-fidelity command center to triage, summarize, and draft correspondence without letting critical items fall through the cracks.
+
+The central technical challenge is: **Who should respond to every email?**
+
+**AetherInbox AI** solves this by providing:
+1. **Automated AI Triage & Responsibility Classification**:
+   - `assistant_to_reply`: Routine operations, calendar logistics, procurement approvals, travel arrangements.
+   - `client_to_reply`: High-stakes signatory authorization (DocuSign), valuation/M&A agreements, press/media commentary, custom SLA liability concessions.
+   - `no_reply_needed`: Automated statements, cloud billing receipts, IT training notices, newsletters.
+   - `needs_review`: Ambiguous solicitations flagged for human review whenever AI confidence is `< 75%`.
+2. **Two Specialized, Synchronized Perspectives**:
+   - **Assistant Dashboard (Marcus Chen)**: 3-pane command center with 9 filter segments, search, sorting (date, confidence, priority), triage rationale, calendar event sync, and role-conditioned reply drafting *on behalf of* the client.
+   - **Client View (Elena Vance)**: Minimalist single-column feed showing *only* decisions requiring direct CEO intervention, featuring highlighted **"Why Your Attention is Needed"** callouts, 1-click delegation with instructions, and first-person CEO reply drafting.
+3. **Dynamic Reclassification on Incoming Messages**: When external stakeholders send new terms or demands on an existing thread, the AI re-analyzes the full conversation history and reclassifies the thread in real time.
+4. **Natural Language Inbox Copilot ("Ask AI")**: Conversational assistant querying actual database telemetry to answer questions about blockers, client approvals, upcoming meetings, and thread summaries with direct clickable thread citations.
+5. **Zero-Configuration Resilient Architecture**: Operates with live Google Gemini API keys or seamlessly falls back to a deterministic intelligent engine and zero-config in-memory MongoDB store.
+
+---
+
+## 🏛 Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client["Frontend Client (React 18 + Vite + Tailwind)"]
+        Nav["Navbar (Role Switcher & Sync Pills)"]
+        AD["Assistant Dashboard (3-Pane Layout)"]
+        CV["Client View (Minimalist Executive Feed)"]
+        Sim["Simulate Email Modal (New & Reply Modes)"]
+        Copilot["Ask AI Copilot Drawer"]
+        Context["AppContext State Management"]
+    end
+
+    subgraph Server["Backend Server (Express.js REST API)"]
+        AuthRoutes["/api/auth (User, Role, Simulated OAuth)"]
+        EmailRoutes["/api/emails (Triage, Sort, Delegate, Send)"]
+        AISvc["AIService (Gemini API + RuleBased Engine)"]
+    end
+
+    subgraph DataLayer["Persistence Layer"]
+        MDB["MongoDB (External Host / MongoDB Atlas)"]
+        MemDB["mongodb-memory-server (Zero-Config Cache)"]
+    end
+
+    Nav --> Context
+    AD --> Context
+    CV --> Context
+    Sim --> Context
+    Copilot --> Context
+    Context <-->|REST API / JSON| Server
+
+    Server --> AISvc
+    Server --> MDB
+    MDB -.->|Fallback if down| MemDB
 ```
 
 ---
 
-## ⚡ Quick Start & Terminal Commands
+## 📋 Feature Breakdown
 
-### Step 1: Install Dependencies
+### 1. Assistant Dashboard (Marcus Chen, EA)
+- **Top Metric Strip**: Real-time KPI counters for Unread, Action Required, Assistant to Reply, Client to Reply, Needs Review (<75% AI), and Upcoming Meetings.
+- **9 Smart Segments**: *All Inboxes, Assistant to Reply, Client to Reply, Needs Review, Meetings & Events, Waiting for Response, Important, No Reply Needed, Handled / Archive*.
+- **Multi-Factor Sorting**: Sort by Newest, Oldest, High Confidence, Low Confidence, or Priority.
+- **Search & Filter**: Real-time search across subject, sender, body, and AI summary.
+- **Calendar Event Detection**: Automatic isolation of dates, times, and venues with a 1-click Google Calendar sync action.
+- **Human vs. AI Audit Trail**: Clear badges showing whether a classification was determined by AI or manually overridden by Marcus, preserving the original classification for audit integrity.
+- **Interactive AI Reply Composer**: Select tone (*Professional, Warm, Direct, Firm*), input optional custom instructions, generate drafts *on behalf of* Elena Vance, edit in-place, and click **"Send & Mark Handled"**.
 
-From the project root directory (`email-assistant-dashboard`):
+### 2. Executive Client Dashboard (Elena Vance, CEO)
+- **Extreme Focus**: Strips away all noise, showing strictly active threads classified as `client_to_reply`.
+- **"Why Your Attention is Needed"**: Prominent callouts explaining why CEO intervention is required (e.g. DocuSign execution, M&A valuation, press embargo, SLA liability limits).
+- **One-Click Delegation**: Elena can enter brief notes (e.g. *"Marcus, politely decline and propose next quarter"*) and confirm delegation—the thread instantly transitions to Marcus's queue with the note attached.
+- **First-Person AI Reply Composer**: Elena can draft and send direct CEO responses written in first person.
+- **Mark Handled**: 1-click resolution that synchronizes immediately across the entire platform.
 
+### 3. AI Classification & Reclassification Engine
+- **75% Confidence Floor**: Ambiguous emails with conflicting or low-context signals automatically enter `needs_review` with `< 75%` confidence.
+- **Full History Context**: Evaluates whether the client or external sender sent the latest message, business context, urgency, and whether an active reply is required.
+- **Dynamic Reclassification**: Incoming messages appended to existing threads trigger immediate AI re-evaluation, dynamically updating the responsibility assignment.
+- **Resilient Fallback**: If Gemini API keys are absent or rate-limited, the deterministic rule-based engine maintains 100% feature precision with zero downtime.
+
+### 4. Natural Language Copilot ("Ask AI")
+- Answers natural language questions directly against current database records:
+  - *"What am I waiting for?"* → Identifies blocked threads (e.g. KPMG audit delivery).
+  - *"Which emails require client approval?"* → Highlights pending CEO decisions.
+  - *"Why has this email been assigned to the client?"* → Details high-stakes reasoning.
+  - *"What meetings are coming up?"* → Extracts calendar dates, times, and venues.
+  - *"What needs urgent review?"* → Surfaces ambiguous low-confidence threads.
+  - *"Summarize active high-stakes threads"* → Generates concise bullet-point digests.
+- Returns clickable thread cards that navigate directly to that email in the dashboard.
+
+### 5. Onboarding & Account Connection
+- Welcome profile detailing the executive/assistant workflow.
+- Simulated OAuth connection for Google Workspace (Gmail) and Microsoft 365 (Outlook).
+- Displays connection status, email address, last synced timestamp, and manual "Sync Now" triggers.
+- Transparently discloses simulated integrations for prototype evaluation.
+
+---
+
+## ⚡ Quick Start & Setup Guide
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher (v20+ recommended).
+- **npm**: v9.0.0 or higher.
+- *(Optional)* **MongoDB**: Local MongoDB instance or MongoDB Atlas URI. If no MongoDB is running, the application automatically boots `mongodb-memory-server` with zero configuration!
+
+### Step 1: Clone the Repository
 ```bash
-# Option A: One command to install root, server, and client packages
+git clone https://github.com/sylbornfurtado19/email-assistant-dashboard.git
+cd email-assistant-dashboard
+```
+
+### Step 2: Install Dependencies
+```bash
+# Install root, server, and client dependencies in one command
 npm run install:all
 
-# Option B: Or install individually
+# Or install individually
 cd server && npm install
 cd ../client && npm install
 cd ..
 npm install
 ```
 
-### Step 2: (Optional) Set API Key in `server/.env`
+### Step 3: Configure Environment Variables
+Copy the example environment file in the `server` directory:
+```bash
+cp server/.env.example server/.env
+```
 
-If you have a Google Gemini or OpenAI API key, open `server/.env`:
-
+Open `server/.env` and optionally configure:
 ```env
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/email_assistant_db
+# Optional: Provide Google Gemini API Key for live LLM generation
 GEMINI_API_KEY=your_gemini_api_key_here
+CLIENT_URL=http://localhost:5173
 ```
-> **Note:** If no key is set, the built-in intelligent rule engine runs automatically with 100% precision!
+> **Note on AI Keys**: If `GEMINI_API_KEY` is omitted, the built-in deterministic AI engine runs with 100% accuracy across all classification, drafting, and copilot queries.
 
-### Step 3: Run the Monorepo
+### Step 4: Seed the Database
+Seed the 12 realistic multi-message executive threads:
+```bash
+npm run seed
+```
 
-Start both `/server` (port 5000) and `/client` (port 5173) concurrently:
-
+### Step 5: Start the Development Server
 ```bash
 npm run dev
 ```
-
-Or run them in separate terminal windows:
-
-```bash
-# Terminal 1 (Backend Server)
-cd server
-npm run dev
-
-# Terminal 2 (Frontend Client)
-cd client
-npm run dev
-```
-
-Open your browser at: **`http://localhost:5173`**
+- **Client App**: [http://localhost:5173](http://localhost:5173)
+- **Backend API**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
 
 ---
 
-## 🧪 Interactive Walkthrough
+## 🧪 Automated Testing
 
-1. **Role Toggling:**
-   - Click **"Assistant View"** (Marcus Chen) in the top navigation bar to see the comprehensive 3-pane triage dashboard.
-   - Click **"Client View"** (Elena Vance) to experience the minimalistic executive feed showing only items requiring CEO intervention.
+Run the automated end-to-end test suite covering all 37 critical verification checkpoints:
+```bash
+npm test
+```
+The test suite validates:
+- User profile & connected accounts initialization
+- 12 realistic multi-message thread classifications
+- 75% confidence threshold enforcement for ambiguous emails
+- High-stakes signatory & M&A routing to `client_to_reply`
+- Calendar event extraction (date, time, location)
+- Role-based drafting identity (*Marcus on behalf of Elena* vs. *Elena first-person*)
+- Dynamic reclassification on incoming messages
+- Client delegation to assistant with custom instructions
+- Human override audit trail preservation
+- AI Inbox Copilot Q&A across live database telemetry
 
-2. **Simulate Incoming Email:**
-   - Click the **"Simulate Email"** button in the navbar.
-   - Pick one of the 3 presets (e.g. *Urgent Board Meeting Reschedule*, *Enterprise Term Sheet*, or *Cryptic Vendor Inquiry*).
-   - Click **"Run AI Classification"** to watch the AI classify, score confidence, extract calendar events, and route the email in real-time.
+---
 
-3. **Client Delegation:**
-   - In **Client View**, find any thread and click **"Delegate to Assistant"**.
-   - Type instructions (e.g. *"Marcus, approve with a 5% cap"*).
-   - Confirm delegation—the thread instantly transitions to `assistant_to_reply` with Elena's note attached!
+## 🎬 3–5 Minute Demo Walkthrough Script
 
-4. **AI Reply Drafting:**
-   - In **Assistant View**, pick a thread in the middle column.
-   - In the right-hand pane, choose a tone (*Warm, Professional, Direct, Firm*).
-   - Click **"Generate AI Draft"** to watch the AI tailor a reply on behalf of Elena Vance.
-   - Edit the text and click **"Send & Mark Handled"**.
+Use this script during live presentations or video demonstrations:
 
-5. **Ask AI Inbox Copilot:**
-   - Click **"Ask AI"** in the navbar to open the slide-over assistant.
-   - Click any prompt like *"What am I waiting on?"* or *"Why is this assigned to the client?"*.
-   - Click the referenced thread cards to navigate directly to that thread.
+| Timestamp | Screen / View | Action & Narrative |
+| :--- | :--- | :--- |
+| **0:00 – 0:45** | **Navbar & Onboarding** | "Welcome to AetherInbox AI. We solve the central problem in executive email management: *Who should respond to every email?* Notice our top navigation showing the executive pair: Elena Vance (CEO) and Marcus Chen (EA). Clicking the green Sync pill opens our Onboarding Suite showing connected Gmail and Outlook accounts with live timestamps and simulated OAuth security." |
+| **0:45 – 1:30** | **Assistant Dashboard** | "In Assistant View, Marcus has an information-rich command center. The top KPI bar aggregates unread counts, action items, and upcoming meetings. In the middle pane, 12 multi-message threads are triaged across 4 states: Assistant to Reply, Client to Reply, No Reply Needed, and Needs Review. Let's filter by 'Meetings' to see our Q3 Board Dinner, where the AI automatically extracted the date, time, and location with 1-click Google Calendar sync." |
+| **1:30 – 2:15** | **AI Drafting & Classification Override** | "Selecting an operational email, notice the AI Triage Rationale card. If Marcus needs to change the assignment, he can use the Override dropdown—the system records a permanent audit trail preserving the original AI decision. In the Reply Composer, Marcus selects a 'Warm' tone, enters custom notes, and clicks 'Generate AI Draft'. The AI drafts explicitly *on behalf of Elena Vance*. Clicking 'Send & Mark Handled' logs the reply and updates the thread." |
+| **2:15 – 3:00** | **Client View & Delegation** | "Now let's switch to Elena Vance's Client View. Notice the radical shift to a minimalist executive layout. Elena sees only items requiring her personal authority. On the Global FinCorp SLA thread, the AI prominently highlights *Why Your Attention is Needed*: custom 99.99% SLA rebate liability. Rather than writing a response, Elena clicks 'Delegate to Assistant', types *'Marcus, politely decline 99.99% and offer 99.9% with credits'*, and confirms. The thread instantly leaves Elena's inbox and transfers to Marcus with her note attached." |
+| **3:00 – 3:45** | **Live Simulation & Reclassification** | "Let's click 'Simulate Email'. First, we select the 'Ambiguous Vendor Inquiry' preset. Running AI classification proves that because confidence is under 75% (68%), it safely enters 'Needs Review'. Next, we switch to the 'Simulate Reply' tab to test dynamic reclassification on an existing thread. When KPMG replies demanding a CEO signature, the AI analyzes the updated thread history and dynamically flips the thread to Client to Reply." |
+| **3:45 – 4:30** | **AI Inbox Copilot ("Ask AI")** | "Finally, let's open the 'Ask AI' copilot drawer. Asking *'What am I waiting for?'* searches live database telemetry to identify blocked threads like the KPMG audit memorandum. Clicking the referenced card navigates directly to that conversation in the main dashboard." |
 
-6. **Resetting Data:**
-   - Click the circular refresh icon in the navbar at any time to re-seed the pristine 12-thread dataset.
+---
 
+## 🔒 Simulated Integrations & Known Limitations
+
+To ensure complete transparency and credibility, the following integrations are simulated for evaluation:
+1. **Gmail & Microsoft 365 OAuth**: The OAuth consent and token authorization flows are simulated with realistic delays and state transitions; no production Google Cloud or Azure App registrations are required.
+2. **Outbox Message Dispatch**: Outgoing email transmissions are logged directly into thread history and marked with a simulated outbox badge; no live SMTP traffic is dispatched to external mail servers.
+3. **Calendar Synchronization**: Event extraction detects real date/time/location strings and simulates Google Calendar event registration via user confirmation toasts.
+4. **Local Database Auto-Fallback**: If a persistent MongoDB instance or Atlas connection string is not provided, the server automatically spins up a local in-memory database instance (`mongodb-memory-server`) to guarantee zero-failure local evaluations.
+
+---
+
+## 🚀 Production Deployment Instructions
+
+### Option 1: Unified Full-Stack Hosting (Render / Railway / Fly.io / VPS)
+The server is configured to serve the production frontend build (`client/dist`) automatically:
+```bash
+# 1. Build the frontend
+npm run build
+
+# 2. Start the unified production server
+npm start
+```
+Environment variables for the backend:
+- `PORT=5000`
+- `NODE_ENV=production`
+- `MONGODB_URI=<your-mongodb-atlas-uri>`
+- `GEMINI_API_KEY=<optional-gemini-key>`
+
+### Option 2: Split Frontend Deployment (Vercel)
+The `client` directory includes `vercel.json` with SPA routing rewrites:
+1. Connect the repository to Vercel.
+2. Set Root Directory to `client`.
+3. Set Build Command to `npm run build` (Output Directory: `dist`).
+4. In Vercel Environment Variables, add:
+   - `VITE_API_BASE_URL=<your-deployed-backend-url>`
+5. Deploy! Direct page refreshes and API routing are handled automatically.
+
+---
+
+## 📄 License
+MIT License. Created for the Humanity Founders AI Full-Stack Engineer Intern Challenge.

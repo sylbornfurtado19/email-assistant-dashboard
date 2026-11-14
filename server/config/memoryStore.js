@@ -84,10 +84,18 @@ class MockCollection {
   }
 
   find(query = {}) {
-    const results = this.records.filter((doc) => this.matchesQuery(doc, query));
+    let results = this.records.filter((doc) => this.matchesQuery(doc, query));
     return {
       sort: (sortObj = {}) => {
-        return results.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        if (sortObj.confidence) {
+          return results.sort((a, b) =>
+            sortObj.confidence === -1 ? (b.confidence || 0) - (a.confidence || 0) : (a.confidence || 0) - (b.confidence || 0)
+          );
+        }
+        if (sortObj.createdAt === 1 || sortObj.updatedAt === 1) {
+          return results.sort((a, b) => new Date(a.createdAt || a.updatedAt) - new Date(b.createdAt || b.updatedAt));
+        }
+        return results.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
       },
       then: (resolve) => resolve(results),
     };

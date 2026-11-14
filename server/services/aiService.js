@@ -2,10 +2,97 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 /**
- * Intelligent Rule-Based Fallback Engine
- * Ensures 100% functionality without requiring external API keys.
+ * Robust JSON extraction helper
+ * Strips markdown code blocks and extracts JSON objects safely
  */
-class RuleBasedAIEngine {
+export function safeJsonParse(text) {
+  if (!text || typeof text !== 'string') return null;
+  // 1. Direct parse
+  try {
+    return JSON.parse(text);
+  } catch (_) {}
+
+  // 2. Strip markdown code fences (```json ... ``` or ``` ...)
+  const cleaned = text
+    .replace(/^```json\s*/im, '')
+    .replace(/^```\s*/im, '')
+    .replace(/```\s*$/m, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {}
+
+  // 3. Extract outermost { ... }
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+/**
+ * Validates and sanitizes structured classification output
+ */
+export function validateClassification(parsed, fallbackGenerator) {
+  const validClassifications = ['assistant_to_reply', 'client_to_reply', 'no_reply_needed', 'needs_review'];
+  const validCategories = ['meetings', 'action_required', 'waiting_for_response', 'important', 'general'];
+
+  if (!parsed || typeof parsed !== 'object') {
+    return fallbackGenerator();
+  }
+
+  let classification = validClassifications.includes(parsed.classification)
+    ? parsed.classification
+    : 'needs_review';
+
+  let confidence = typeof parsed.confidence === 'number' && !isNaN(parsed.confidence)
+    ? Math.min(100, Math.max(0, Math.round(parsed.confidence)))
+    : 70;
+
+  // Enforce 75% confidence threshold: if confidence < 75, force needs_review
+  if (confidence < 75 && classification !== 'no_reply_needed') {
+    classification = 'needs_review';
+  }
+
+  const category = validCategories.includes(parsed.category) ? parsed.category : 'general';
+  const aiReason = parsed.aiReason ? String(parsed.aiReason).trim() : 'Classified by AI triage engine.';
+  const summary = parsed.summary ? String(parsed.summary).trim() : 'Email thread conversation.';
+  const whyClientNeeded =
+    classification === 'client_to_reply'
+      ? (parsed.whyClientNeeded ? String(parsed.whyClientNeeded).trim() : 'High-priority executive decision required from CEO Elena.')
+      : '';
+  const suggestedAction = parsed.suggestedAction ? String(parsed.suggestedAction).trim() : 'Review thread and take appropriate action.';
+
+  let extractedEvent = null;
+  if (parsed.extractedEvent && typeof parsed.extractedEvent === 'object' && parsed.extractedEvent.date) {
+    extractedEvent = {
+      title: String(parsed.extractedEvent.title || 'Calendar Event').trim(),
+      date: String(parsed.extractedEvent.date || '').trim(),
+      time: String(parsed.extractedEvent.time || '').trim(),
+      location: String(parsed.extractedEvent.location || 'Virtual / TBD').trim(),
+    };
+  }
+
+  return {
+    classification,
+    confidence,
+    aiReason,
+    summary,
+    whyClientNeeded,
+    category,
+    suggestedAction,
+    extractedEvent,
+  };
+}
+
+/**
+ * Intelligent Deterministic Rule-Based Engine
+ * Ensures 100% functionality and accuracy without requiring external API keys.
+ */
+export class RuleBasedAIEngine {
   static extractDatesAndTimes(text) {
     // Detect dates like Nov 20, 2026, 2026-11-20, November 20th, tomorrow, etc.
     const dateRegex = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?/i;
@@ -28,10 +115,11 @@ class RuleBasedAIEngine {
     return null;
   }
 
-  static classify(messages, subject = '') {
+  static classify(messages = [], subject = '') {
     const fullText = `${subject} ${messages.map((m) => `${m.senderName}: ${m.body}`).join(' ')}`.toLowerCase();
-    const latestMessage = messages[messages.length - 1] || { body: '', senderName: '', senderEmail: '' };
+    const latestMessage = messages[messages.length - 1] || { body: '', senderName: '', senderEmail: '', isClient: false };
     const latestText = `${latestMessage.body}`.toLowerCase();
+    const latestIsClient = !!latestMessage.isClient;
 
     // Check for explicit event/meeting scheduling
     const event = this.extractDatesAndTimes(`${subject} ${latestMessage.body}`);
@@ -39,30 +127,31 @@ class RuleBasedAIEngine {
       fullText
     );
 
-    // Rule 1: High-stakes executive decision / Signatory / M&A / Term Sheet / Press
+    // Rule 1: High-stakes executive decision / Signatory / M&A / Term Sheet / Press / Custom SLA
     const isExecutiveLevel =
-      /(term sheet|acquisition|merger|m&a|valuation|signatory|signature required|press embargo|bloomberg|interview request|lawsuit|board member approval|equity grant|custom sla|penalty clause|legal settlement)/i.test(
+      /(term sheet|acquisition|merger|m&a|valuation|signatory|signature|signoff|sign-off|docusign|press embargo|bloomberg|interview request|lawsuit|board member approval|equity grant|custom sla|penalty clause|legal settlement|indemnity clause)/i.test(
         fullText
       );
 
     // Rule 2: Ambiguous or confusing inquiries (< 75 confidence -> needs_review)
     const isAmbiguous =
-      /(maybe|unclear|per your thoughts|could go either way|cryptic|partnership inquiry|revenue split?|conflicting|please clarify|open to interpretation)/i.test(
+      /(maybe|unclear|per your thoughts|could go either way|cryptic|partnership inquiry|revenue split?|conflicting|please clarify|open to interpretation|excess gpu|excess capacity|joint press release\?)/i.test(
         fullText
       ) ||
       (fullText.includes('proposal') && !fullText.includes('approved') && fullText.length < 150);
 
     // Rule 3: Automated notifications, receipts, newsletters, marketing (no_reply_needed)
     const isAutomatedOrNoReply =
-      /(no-reply|noreply|billing receipt|invoice receipt|cloudwatch|aws billing|alert confirmation|flight itinerary confirmed|ticket confirmation|security training|phishing simulation|newsletter|do not reply)/i.test(
+      /(no-reply|noreply|billing receipt|invoice receipt|cloudwatch|aws billing|alert confirmation|flight itinerary confirmed|ticket confirmation|security training|phishing simulation|newsletter|do not reply|no security actions or responses are required|no action is required)/i.test(
         fullText
       );
 
-    // Rule 4: Waiting for response
+    // Rule 4: Waiting for response (Client sent the latest message awaiting external response)
     const isWaitingOnOther =
-      /(waiting for|awaiting your documents|pending receipt of|will send by|looking forward to receiving the audit|kpmg)/i.test(
+      latestIsClient ||
+      (/(waiting for|awaiting your documents|pending receipt of|will send by|looking forward to receiving the audit|kpmg)/i.test(
         fullText
-      ) && latestMessage.isClient;
+      ) && latestIsClient);
 
     // Decision Logic
     let classification = 'assistant_to_reply';
@@ -70,57 +159,68 @@ class RuleBasedAIEngine {
     let aiReason = '';
     let whyClientNeeded = '';
     let category = 'general';
+    let suggestedAction = '';
 
     if (isAutomatedOrNoReply) {
       classification = 'no_reply_needed';
       confidence = 97;
       aiReason = 'Automated system notification or informational receipt requiring zero correspondence.';
       category = isMeetingRelated ? 'meetings' : 'general';
+      suggestedAction = 'Archive informational update to system records.';
     } else if (isAmbiguous) {
       classification = 'needs_review';
       confidence = 68; // Under 75 threshold as required
       aiReason =
         'Ambiguous context with vague terms or conflicting signals; requires human assistant triage to determine appropriate owner.';
       category = 'action_required';
+      suggestedAction = 'Review partnership inquiry and clarify required executive involvement.';
     } else if (isExecutiveLevel) {
       classification = 'client_to_reply';
       confidence = 94;
       category = 'important';
 
-      if (/(term sheet|acquisition|valuation|signatory)/i.test(fullText)) {
+      if (/(term sheet|acquisition|valuation|signatory|signature|signoff|docusign|indemnity)/i.test(fullText)) {
         whyClientNeeded = 'Requires legal signatory authorization and valuation approval directly from CEO Elena.';
         aiReason = 'Strategic M&A and contract execution necessitates direct executive authorization.';
+        suggestedAction = 'Review term sheet with outside counsel and authorize DocuSign signature.';
       } else if (/(press|bloomberg|interview)/i.test(fullText)) {
         whyClientNeeded = 'Press embargo commentary deadline within short timeframe regarding company strategy.';
         aiReason = 'High-visibility media request requiring principal executive quotes.';
+        suggestedAction = 'Confirm CEO availability for live TV studio broadcast.';
       } else if (/(sla|penalty)/i.test(fullText)) {
         whyClientNeeded = 'Customer requesting custom SLA penalty clause outside standard operating limits.';
         aiReason = 'Enterprise risk exposure requires executive pricing & SLA signoff.';
+        suggestedAction = 'Review custom 99.99% uptime terms or propose alternative service credits.';
       } else {
         whyClientNeeded = 'Strategic decision requiring principal executive authority and signature.';
         aiReason = 'High-priority executive matter identified from thread keywords.';
+        suggestedAction = 'Evaluate proposal and advise assistant on executive position.';
       }
     } else if (isWaitingOnOther) {
       classification = 'assistant_to_reply';
       category = 'waiting_for_response';
       confidence = 85;
       aiReason = 'Thread is currently blocked waiting on external partner delivery before next action.';
+      suggestedAction = 'Monitor inbox for auditor delivery; send follow-up nudge if delayed.';
     } else if (isMeetingRelated) {
       category = 'meetings';
       if (/(dinner|vip|board)/i.test(fullText)) {
         classification = 'assistant_to_reply';
         confidence = 92;
         aiReason = 'Executive assistant calendar coordination requested for upcoming VIP event.';
+        suggestedAction = 'Confirm headcount, dietary restrictions, and send calendar invite.';
       } else {
         classification = 'assistant_to_reply';
         confidence = 90;
         aiReason = 'Routine calendar & logistical scheduling suitable for assistant resolution.';
+        suggestedAction = 'Cross-reference Elena’s calendar and send confirmed time slot.';
       }
     } else {
       classification = 'assistant_to_reply';
       confidence = 86;
       aiReason = 'Standard operational inquiry suitable for executive assistant response on behalf of client.';
       category = 'action_required';
+      suggestedAction = 'Draft confirmation reply on behalf of Elena Vance.';
     }
 
     // Generate executive summary
@@ -133,6 +233,7 @@ class RuleBasedAIEngine {
       summary,
       whyClientNeeded: classification === 'client_to_reply' ? whyClientNeeded : '',
       category,
+      suggestedAction,
       extractedEvent: event,
     };
   }
@@ -166,7 +267,8 @@ class RuleBasedAIEngine {
     const clientName = 'Elena Vance';
     const assistantName = 'Marcus Chen';
 
-    let salutation = `Hi ${lastSender.split(' ')[0]},`;
+    const firstName = lastSender.split(' ')[0] || 'there';
+    let salutation = `Hi ${firstName},`;
     let body = '';
     let signOff = '';
 
@@ -207,6 +309,8 @@ class RuleBasedAIEngine {
         signOff = `Warmly,\nElena\n\nElena Vance\nCEO, Vance Technologies`;
       } else if (tone === 'direct') {
         signOff = `Thanks,\nElena`;
+      } else if (tone === 'firm') {
+        signOff = `Regards,\n\nElena Vance\nCEO, Vance Technologies`;
       } else {
         signOff = `Best regards,\n\nElena Vance\nCEO, Vance Technologies`;
       }
@@ -229,7 +333,7 @@ class RuleBasedAIEngine {
   static answerInboxQuestion(query, threads = []) {
     const q = query.toLowerCase();
 
-    // 1. "What am I waiting on?"
+    // 1. "What am I waiting on / waiting for?"
     if (q.includes('waiting') || q.includes('blocked') || q.includes('pending')) {
       const waitingThreads = threads.filter(
         (t) => t.category === 'waiting_for_response' || t.aiReason?.toLowerCase().includes('waiting')
@@ -249,54 +353,105 @@ class RuleBasedAIEngine {
       };
     }
 
-    // 2. "Why is this assigned to the client?"
-    if (q.includes('why') && (q.includes('client') || q.includes('assigned') || q.includes('elena'))) {
+    // 2. "Why is this assigned to the client?" or "Which emails require client approval / attention?"
+    if (
+      (q.includes('why') && (q.includes('client') || q.includes('assigned') || q.includes('elena'))) ||
+      q.includes('require client') ||
+      q.includes('client approval') ||
+      q.includes('requiring my attention')
+    ) {
       const clientThreads = threads.filter((t) => t.classification === 'client_to_reply');
-      const list = clientThreads
-        .map((t) => `• **${t.subject}**: ${t.whyClientNeeded || t.aiReason}`)
-        .join('\n');
+      if (clientThreads.length > 0) {
+        const list = clientThreads
+          .map((t) => `• **${t.subject}**: ${t.whyClientNeeded || t.aiReason}`)
+          .join('\n');
+        return {
+          answer: `There are **${clientThreads.length} items** requiring Elena Vance's direct executive input:\n\n${list}\n\n*General Rule:* High-stakes legal contracts, media quotes, and custom SLA concessions cannot be delegated without direct CEO authorization.`,
+          matchingThreadIds: clientThreads.map((t) => t._id.toString()),
+          suggestedActions: ['Switch to Client View to review cards', 'Delegate routine parts to Marcus'],
+        };
+      }
       return {
-        answer: `There are **${clientThreads.length} items** requiring Elena's direct client input:\n\n${list}\n\n*General Rule:* High-stakes legal contracts, media quotes, and custom SLA concessions cannot be delegated without direct CEO authorization.`,
-        matchingThreadIds: clientThreads.map((t) => t._id.toString()),
-        suggestedActions: ['Switch to Client View to review cards', 'Delegate routine parts to Marcus'],
+        answer: 'There are currently no threads requiring direct client authorization. Inbox Zero for Elena!',
+        matchingThreadIds: [],
+        suggestedActions: ['View assistant queue'],
       };
     }
 
     // 3. Meetings / Calendar queries
-    if (q.includes('meeting') || q.includes('calendar') || q.includes('dinner') || q.includes('schedule')) {
+    if (q.includes('meeting') || q.includes('calendar') || q.includes('dinner') || q.includes('schedule') || q.includes('upcoming')) {
       const meetingThreads = threads.filter((t) => t.category === 'meetings' || t.extractedEvent);
-      const list = meetingThreads
-        .map((t) => {
-          const ev = t.extractedEvent;
-          return `• **${t.subject}**: ${ev?.title || 'Meeting'} on **${ev?.date || 'Date TBD'}** at **${ev?.time || 'Time TBD'}** (${ev?.location || 'Location TBD'})`;
-        })
-        .join('\n');
+      if (meetingThreads.length > 0) {
+        const list = meetingThreads
+          .map((t) => {
+            const ev = t.extractedEvent;
+            return `• **${t.subject}**: ${ev?.title || 'Meeting'} on **${ev?.date || 'Date TBD'}** at **${ev?.time || 'Time TBD'}** (${ev?.location || 'Location TBD'})`;
+          })
+          .join('\n');
+        return {
+          answer: `Found **${meetingThreads.length} calendar and meeting threads**:\n\n${list}\n\nAll extracted dates have been prepared with single-click calendar sync banners.`,
+          matchingThreadIds: meetingThreads.map((t) => t._id.toString()),
+          suggestedActions: ['Sync events to Google Calendar', 'Confirm attendees'],
+        };
+      }
       return {
-        answer: `Found **${meetingThreads.length} calendar and meeting threads**:\n\n${list}\n\nAll extracted dates have been prepared with single-click calendar sync banners.`,
-        matchingThreadIds: meetingThreads.map((t) => t._id.toString()),
-        suggestedActions: ['Sync events to Google Calendar', 'Confirm attendees'],
+        answer: 'No upcoming meetings or calendar invites detected in active threads.',
+        matchingThreadIds: [],
+        suggestedActions: ['Check archived items'],
       };
     }
 
-    // 4. "What needs urgent review?"
-    if (q.includes('review') || q.includes('urgent') || q.includes('attention') || q.includes('priority')) {
+    // 4. "What needs urgent review?" / "Needs review"
+    if (q.includes('review') || q.includes('urgent') || q.includes('ambiguous')) {
       const reviewThreads = threads.filter(
-        (t) => t.classification === 'needs_review' || (t.confidence < 75 && t.classification !== 'completed')
+        (t) => t.classification === 'needs_review' || (t.confidence < 75 && !t.isCompleted)
       );
-      const list = reviewThreads
-        .map((t) => `• **${t.subject}** (Confidence: ${t.confidence}% - ${t.aiReason})`)
-        .join('\n');
+      if (reviewThreads.length > 0) {
+        const list = reviewThreads
+          .map((t) => `• **${t.subject}** (Confidence: ${t.confidence}% - ${t.aiReason})`)
+          .join('\n');
+        return {
+          answer: `There are **${reviewThreads.length} ambiguous threads** flagged for human assistant review (< 75% confidence):\n\n${list}\n\nYou can override their classification directly from the Assistant Dashboard right-hand pane.`,
+          matchingThreadIds: reviewThreads.map((t) => t._id.toString()),
+          suggestedActions: ['Review ambiguous threads', 'Override classification'],
+        };
+      }
       return {
-        answer: `There are **${reviewThreads.length} ambiguous threads** that were flagged for human assistant review:\n\n${list}\n\nYou can override their classification directly from the Assistant Dashboard right-hand pane.`,
-        matchingThreadIds: reviewThreads.map((t) => t._id.toString()),
-        suggestedActions: ['Review ambiguous threads', 'Override classification'],
+        answer: 'All active threads have high AI confidence (> 75%). Zero ambiguous threads pending review.',
+        matchingThreadIds: [],
+        suggestedActions: ['Check assistant queue'],
       };
     }
 
-    // Generic fallback keyword search
+    // 5. "Summarize this conversation" or "Summarize"
+    if (q.includes('summarize')) {
+      const activeSample = threads.filter((t) => !t.isCompleted).slice(0, 3);
+      const list = activeSample
+        .map((t) => `• **${t.subject}**: ${t.summary || t.aiReason}`)
+        .join('\n\n');
+      return {
+        answer: `Here is the current executive summary of high-priority inbox threads:\n\n${list}`,
+        matchingThreadIds: activeSample.map((t) => t._id.toString()),
+        suggestedActions: ['Open first thread', 'Filter by client to reply'],
+      };
+    }
+
+    // 6. "Draft a response to this email" or "draft"
+    if (q.includes('draft') || q.includes('response')) {
+      const targetThread = threads.find((t) => t.classification === 'assistant_to_reply' && !t.isCompleted) || threads[0];
+      if (targetThread) {
+        return {
+          answer: `I can draft a response for **${targetThread.subject}**. Marcus can choose from 4 tones (*Professional, Warm, Direct, Firm*) in the Reply Composer on the right panel.\n\nSuggested approach: ${targetThread.suggestedAction || 'Acknowledge receipt and confirm next steps.'}`,
+          matchingThreadIds: [targetThread._id.toString()],
+          suggestedActions: ['Generate AI Draft in Composer', 'Open thread'],
+        };
+      }
+    }
+
+    // Generic fallback keyword search across inbox data
     const terms = q.split(/\s+/).filter((word) => word.length > 2);
     const matches = threads.filter((t) => {
-      const hay = `${t.subject} ${t.summary} ${t.aiReason} ${t.whyClientNeeded}`.toLowerCase();
+      const hay = `${t.subject} ${t.summary} ${t.aiReason} ${t.whyClientNeeded} ${t.suggestedAction}`.toLowerCase();
       return terms.some((term) => hay.includes(term));
     });
 
@@ -313,7 +468,7 @@ class RuleBasedAIEngine {
     }
 
     return {
-      answer: `I searched across your inbox for "${query}", but found no direct matches. Try asking: \n- *"What am I waiting on?"*\n- *"Why is this assigned to the client?"*\n- *"Show all upcoming meetings"*`,
+      answer: `I searched across your inbox for "${query}", but found no direct matches. Try asking: \n- *"What am I waiting for?"*\n- *"Which emails require client approval?"*\n- *"What meetings are coming up?"*\n- *"What needs urgent review?"*`,
       matchingThreadIds: [],
       suggestedActions: ['Show all threads', 'Filter by Client to Reply'],
     };
@@ -322,10 +477,11 @@ class RuleBasedAIEngine {
 
 /**
  * Main AI Service
- * Supports Gemini SDK / OpenAI SDK if API keys exist, otherwise uses the smart RuleBasedAIEngine.
+ * Supports Gemini API SDK if GEMINI_API_KEY is configured,
+ * with seamless automatic fallback to the intelligent RuleBasedAIEngine.
  */
 class AIService {
-  static async classifyThread(messages, subject = '') {
+  static async classifyThread(messages = [], subject = '') {
     // Check if GEMINI_API_KEY is available
     if (process.env.GEMINI_API_KEY) {
       try {
@@ -344,6 +500,7 @@ Classify into strict JSON matching this schema:
   "summary": "Concise 1-2 sentence executive summary of the thread status",
   "whyClientNeeded": "If client_to_reply, explain why Elena Vance's personal input is required; otherwise empty string",
   "category": "meetings" | "action_required" | "waiting_for_response" | "important" | "general",
+  "suggestedAction": "One clear actionable next step recommendation",
   "extractedEvent": { "title": "string", "date": "string", "time": "string", "location": "string" } or null
 }
 CRITICAL: If confidence is lower than 75, set classification to "needs_review". Output ONLY valid JSON.`;
@@ -354,11 +511,10 @@ CRITICAL: If confidence is lower than 75, set classification to "needs_review". 
           config: { responseMimeType: 'application/json' },
         });
 
-        const parsed = JSON.parse(response.text);
-        if (parsed.confidence < 75) {
-          parsed.classification = 'needs_review';
+        const parsed = safeJsonParse(response.text);
+        if (parsed) {
+          return validateClassification(parsed, () => RuleBasedAIEngine.classify(messages, subject));
         }
-        return parsed;
       } catch (err) {
         console.warn('[AI Service] Gemini call failed, falling back to smart rule engine:', err.message);
       }
@@ -366,6 +522,15 @@ CRITICAL: If confidence is lower than 75, set classification to "needs_review". 
 
     // Default to the intelligent rule-based engine
     return RuleBasedAIEngine.classify(messages, subject);
+  }
+
+  static async reclassifyThread(thread, incomingMessage) {
+    const updatedMessages = [...(thread.messages || []), incomingMessage];
+    const aiResult = await this.classifyThread(updatedMessages, thread.subject);
+    return {
+      aiResult,
+      updatedMessages,
+    };
   }
 
   static async draftReply(thread, role = 'assistant', instructions = '', tone = 'professional') {
@@ -395,7 +560,10 @@ Generate strict JSON:
           config: { responseMimeType: 'application/json' },
         });
 
-        return JSON.parse(response.text);
+        const parsed = safeJsonParse(response.text);
+        if (parsed && parsed.replyBody) {
+          return parsed;
+        }
       } catch (err) {
         console.warn('[AI Service] Gemini draft failed, using rule-based generator:', err.message);
       }
@@ -417,6 +585,7 @@ Generate strict JSON:
           aiReason: t.aiReason,
           summary: t.summary,
           whyClientNeeded: t.whyClientNeeded,
+          suggestedAction: t.suggestedAction,
           event: t.extractedEvent,
         }));
 
@@ -438,7 +607,10 @@ Provide strict JSON:
           config: { responseMimeType: 'application/json' },
         });
 
-        return JSON.parse(response.text);
+        const parsed = safeJsonParse(response.text);
+        if (parsed && parsed.answer) {
+          return parsed;
+        }
       } catch (err) {
         console.warn('[AI Service] Gemini Q&A failed, using smart Q&A engine:', err.message);
       }
@@ -449,4 +621,3 @@ Provide strict JSON:
 }
 
 export default AIService;
-
