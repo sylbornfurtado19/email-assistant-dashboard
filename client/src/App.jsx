@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import AssistantDashboard from './components/AssistantDashboard';
@@ -9,7 +9,63 @@ import AskAIDrawer from './components/AskAIDrawer';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
-  const { activeRole, toasts, removeToast } = useApp();
+  const {
+    activeRole,
+    setActiveRole,
+    isAskAIOpen,
+    setIsAskAIOpen,
+    isSimulateOpen,
+    setIsSimulateOpen,
+    isOnboardingOpen,
+    setIsOnboardingOpen,
+    toasts,
+    removeToast,
+  } = useApp();
+
+  // Superhuman/Linear keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isInput =
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.isContentEditable;
+
+      // Cmd+K or Ctrl+K to toggle Ask AI Copilot
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsAskAIOpen((prev) => !prev);
+        return;
+      }
+
+      // Escape to close modals and drawers
+      if (e.key === 'Escape') {
+        if (isAskAIOpen) setIsAskAIOpen(false);
+        if (isSimulateOpen) setIsSimulateOpen(false);
+        if (isOnboardingOpen) setIsOnboardingOpen(false);
+        return;
+      }
+
+      // Single-key navigation when not typing in an input
+      if (!isInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === '1') {
+          setActiveRole('assistant');
+        } else if (e.key === '2') {
+          setActiveRole('client');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isAskAIOpen,
+    isSimulateOpen,
+    isOnboardingOpen,
+    setActiveRole,
+    setIsAskAIOpen,
+    setIsSimulateOpen,
+    setIsOnboardingOpen,
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100/70 font-sans text-slate-800 antialiased">

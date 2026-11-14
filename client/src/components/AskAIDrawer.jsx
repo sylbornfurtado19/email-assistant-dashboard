@@ -91,8 +91,8 @@ export default function AskAIDrawer() {
 
   const handleSelectThread = (thread) => {
     selectThread(thread);
-    if (thread.classification === 'client_to_reply') {
-      // Role can remain or switch according to user preference
+    if (thread.classification !== 'client_to_reply') {
+      setActiveRole('assistant');
     }
     setIsAskAIOpen(false);
   };

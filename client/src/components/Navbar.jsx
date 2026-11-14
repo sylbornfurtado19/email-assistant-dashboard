@@ -126,10 +126,13 @@ export default function Navbar() {
             <button
               onClick={() => setIsAskAIOpen(true)}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-xs"
-              title="Ask AI Copilot natural language questions about your inbox"
+              title="Ask AI Copilot natural language questions about your inbox (Ctrl+K / ⌘K)"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>Ask AI</span>
+              <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono text-slate-300 bg-white/10 rounded border border-white/15">
+                ⌘K
+              </kbd>
             </button>
 
             {/* Reset Workspace Demo Data */}
