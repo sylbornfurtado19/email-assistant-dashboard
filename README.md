@@ -65,6 +65,24 @@ flowchart TD
 
 ---
 
+## 📸 Product Screenshots (Superhuman / Linear Redesign)
+
+### 1. Assistant Dashboard — 3-Pane Command Center (Marcus Chen, EA)
+*Featuring left smart segments, compact inbox rows with unread dots & triage badges, live AI triage rationale with <75% confidence review, conversation feed, and docked role-conditioned reply composer with tone pills.*
+![Assistant Dashboard Desktop](docs/screenshots/assistant-dashboard-desktop.png)
+
+### 2. Client View — Executive Focus Mode (Elena Vance, CEO)
+*A calm, premium executive queue showing strictly decisions requiring CEO signatory/valuation authority, highlighted "Why Your Attention is Required" alerts, 1-click delegation to Marcus with instructions, and direct first-person replies.*
+![Client View Desktop](docs/screenshots/client-view-desktop.png)
+
+### 3. Mobile Responsive View
+*Seamless single-column list with full-screen conversation detail and quick back navigation.*
+<p align="center">
+  <img src="docs/screenshots/assistant-mobile.png" width="360" alt="Assistant Dashboard Mobile View" />
+</p>
+
+---
+
 ## 📋 Feature Breakdown
 
 ### 1. Assistant Dashboard (Marcus Chen, EA)
