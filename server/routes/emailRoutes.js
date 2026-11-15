@@ -12,6 +12,14 @@ router.get('/', async (req, res) => {
   try {
     const { segment = 'all', search = '', status = 'active', sort = 'newest' } = req.query;
 
+    // Auto-unsnooze expired threads
+    try {
+      await EmailThread.updateMany(
+        { isSnoozed: true, snoozedUntil: { $lte: new Date() } },
+        { $set: { isSnoozed: false, snoozedUntil: null } }
+      );
+    } catch (_) {}
+
     const query = {};
 
     // Filter by completed / active / archived status
@@ -25,29 +33,39 @@ router.get('/', async (req, res) => {
 
     // Segment filters
     switch (segment) {
+      case 'snoozed':
+        query.isSnoozed = true;
+        break;
       case 'assistant_to_reply':
         query.classification = 'assistant_to_reply';
         query.isCompleted = false;
+        query.isSnoozed = false;
         break;
       case 'client_to_reply':
         query.classification = 'client_to_reply';
         query.isCompleted = false;
+        query.isSnoozed = false;
         break;
       case 'needs_review':
         query.classification = 'needs_review';
         query.isCompleted = false;
+        query.isSnoozed = false;
         break;
       case 'no_reply_needed':
         query.classification = 'no_reply_needed';
+        query.isSnoozed = false;
         break;
       case 'meetings':
         query.$or = [{ category: 'meetings' }, { extractedEvent: { $ne: null } }];
+        query.isSnoozed = false;
         break;
       case 'waiting_for_response':
         query.category = 'waiting_for_response';
+        query.isSnoozed = false;
         break;
       case 'important':
         query.isImportant = true;
+        query.isSnoozed = false;
         break;
       case 'completed':
         query.isCompleted = true;
@@ -111,6 +129,7 @@ router.get('/stats', async (req, res) => {
       noReplyNeeded,
       totalActive,
       completed,
+      snoozed,
     ] = await Promise.all([
       EmailThread.countDocuments({ isRead: false, isArchived: false }),
       EmailThread.countDocuments({
@@ -151,6 +170,7 @@ router.get('/stats', async (req, res) => {
       }),
       EmailThread.countDocuments({ isArchived: false }),
       EmailThread.countDocuments({ isCompleted: true }),
+      EmailThread.countDocuments({ isSnoozed: true, isArchived: false }),
     ]);
 
     return res.json({
@@ -167,10 +187,175 @@ router.get('/stats', async (req, res) => {
         noReplyNeeded,
         totalActive,
         completed,
+        snoozed,
       },
     });
   } catch (err) {
     console.error('Error calculating email stats:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/emails/briefing
+ * Synthesizes a high-level morning executive briefing with audio script.
+ */
+router.get('/briefing', async (req, res) => {
+  try {
+    const threads = await EmailThread.find({ isArchived: false });
+    const brief = await AIService.generateExecutiveBrief(threads);
+    return res.json({ success: true, brief });
+  } catch (err) {
+    console.error('Error generating executive brief:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/emails/refine-draft
+ * Refines an email draft (shorter, assertive, bulletize, warm).
+ */
+router.post('/refine-draft', async (req, res) => {
+  try {
+    const { originalDraft, refinementType = 'shorter', role = 'assistant', threadId } = req.body;
+    let thread = {};
+    if (threadId) {
+      thread = (await EmailThread.findById(threadId)) || {};
+    }
+    const refinedDraft = await AIService.refineDraft({ originalDraft, refinementType, role, thread });
+    return res.json({ success: true, refinedDraft });
+  } catch (err) {
+    console.error('Error refining draft:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/emails/batch
+ * Performs batch operations across multiple selected thread IDs.
+ */
+router.patch('/batch', async (req, res) => {
+  try {
+    const { threadIds = [], action, newClassification } = req.body;
+    if (!Array.isArray(threadIds) || threadIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'threadIds array is required' });
+    }
+
+    const updateObj = { updatedAt: new Date() };
+
+    if (action === 'mark_handled') {
+      updateObj.isCompleted = true;
+    } else if (action === 'reopen') {
+      updateObj.isCompleted = false;
+    } else if (action === 'archive') {
+      updateObj.isArchived = true;
+    } else if (action === 'unarchive') {
+      updateObj.isArchived = false;
+    } else if (action === 'mark_read') {
+      updateObj.isRead = true;
+    } else if (action === 'mark_unread') {
+      updateObj.isRead = false;
+    } else if (action === 'override_classification') {
+      if (!newClassification) {
+        return res.status(400).json({ success: false, error: 'newClassification is required' });
+      }
+      updateObj.classification = newClassification;
+      updateObj.isOverridden = true;
+      updateObj.overriddenBy = 'Marcus Chen (Batch)';
+      updateObj.overriddenAt = new Date();
+    } else {
+      return res.status(400).json({ success: false, error: 'Unknown batch action' });
+    }
+
+    await EmailThread.updateMany({ _id: { $in: threadIds } }, { $set: updateObj });
+
+    const updatedThreads = await EmailThread.find({ _id: { $in: threadIds } });
+    return res.json({
+      success: true,
+      modifiedCount: threadIds.length,
+      threads: updatedThreads,
+    });
+  } catch (err) {
+    console.error('Error performing batch operation:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/emails/analytics
+ * Computes deep executive triage metrics, time saved, and bottleneck detection.
+ */
+router.get('/analytics', async (req, res) => {
+  try {
+    const allThreads = await EmailThread.find({});
+    const activeThreads = allThreads.filter((t) => !t.isArchived);
+    const completedThreads = allThreads.filter((t) => t.isCompleted);
+
+    const assistantCount = allThreads.filter((t) => t.classification === 'assistant_to_reply').length;
+    const clientCount = allThreads.filter((t) => t.classification === 'client_to_reply').length;
+    const noReplyCount = allThreads.filter((t) => t.classification === 'no_reply_needed').length;
+    const reviewCount = allThreads.filter((t) => t.classification === 'needs_review').length;
+
+    // Time saved estimation:
+    // Every assistant_to_reply saves ~15 mins, no_reply_needed saves ~5 mins
+    const estimatedMinutesSaved = assistantCount * 15 + noReplyCount * 5;
+    const estimatedHoursSaved = (estimatedMinutesSaved / 60).toFixed(1);
+
+    // Categories
+    const categoryBreakdown = {
+      action_required: allThreads.filter((t) => t.category === 'action_required').length,
+      meetings: allThreads.filter((t) => t.category === 'meetings' || t.extractedEvent).length,
+      waiting_for_response: allThreads.filter((t) => t.category === 'waiting_for_response').length,
+      important: allThreads.filter((t) => t.isImportant).length,
+      general: allThreads.filter((t) => t.category === 'general').length,
+    };
+
+    // Confidence breakdown
+    const highConfidence = allThreads.filter((t) => t.confidence >= 85).length;
+    const mediumConfidence = allThreads.filter((t) => t.confidence >= 75 && t.confidence < 85).length;
+    const lowConfidence = allThreads.filter((t) => t.confidence < 75).length;
+
+    // Bottlenecks: waiting_for_response threads
+    const bottlenecks = allThreads
+      .filter((t) => t.category === 'waiting_for_response' && !t.isCompleted)
+      .map((t) => ({
+        id: t._id,
+        subject: t.subject,
+        sender: t.messages?.[0]?.senderName || 'External Partner',
+        daysWaiting: Math.max(
+          1,
+          Math.round((Date.now() - new Date(t.updatedAt || t.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+        ),
+        aiReason: t.aiReason,
+      }));
+
+    return res.json({
+      success: true,
+      analytics: {
+        totalVolume: allThreads.length,
+        activeCount: activeThreads.length,
+        completedCount: completedThreads.length,
+        workloadSplit: {
+          assistantCount,
+          clientCount,
+          noReplyCount,
+          reviewCount,
+          assistantDelegationRate: Math.round(
+            ((assistantCount + noReplyCount) / (allThreads.length || 1)) * 100
+          ),
+        },
+        estimatedHoursSaved,
+        categoryBreakdown,
+        confidenceDistribution: {
+          highConfidence,
+          mediumConfidence,
+          lowConfidence,
+        },
+        bottlenecks,
+      },
+    });
+  } catch (err) {
+    console.error('Error generating analytics:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -429,6 +614,34 @@ router.patch('/:id/status', async (req, res) => {
     return res.json({ success: true, message: 'Status updated', thread });
   } catch (err) {
     console.error('Error updating status:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/emails/:id/snooze
+ * Snoozes a thread until a specified timestamp or unsnoozes.
+ */
+router.patch('/:id/snooze', async (req, res) => {
+  try {
+    const { snoozedUntil } = req.body;
+    const thread = await EmailThread.findById(req.params.id);
+    if (!thread) {
+      return res.status(404).json({ success: false, error: 'Thread not found' });
+    }
+
+    if (snoozedUntil) {
+      thread.isSnoozed = true;
+      thread.snoozedUntil = new Date(snoozedUntil);
+    } else {
+      thread.isSnoozed = false;
+      thread.snoozedUntil = null;
+    }
+
+    await thread.save();
+    return res.json({ success: true, message: 'Snooze updated', thread });
+  } catch (err) {
+    console.error('Error updating snooze:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

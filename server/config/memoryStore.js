@@ -10,6 +10,8 @@ class MockDocument {
     if (!this._id) {
       this._id = (Date.now() + Math.floor(Math.random() * 1000000)).toString();
     }
+    if (this.isSnoozed === undefined) this.isSnoozed = false;
+    if (this.snoozedUntil === undefined) this.snoozedUntil = null;
     if (!this.createdAt) this.createdAt = new Date();
     if (!this.updatedAt) this.updatedAt = new Date();
   }
@@ -39,6 +41,12 @@ class MockCollection {
       if (key === '$or' && Array.isArray(val)) {
         const matchesAny = val.some((subQuery) => this.matchesQuery(doc, subQuery));
         if (!matchesAny) return false;
+        continue;
+      }
+
+      if (key === '_id' && typeof val === 'object' && val.$in) {
+        const idStrings = val.$in.map((id) => id.toString());
+        if (!idStrings.includes(doc._id.toString())) return false;
         continue;
       }
 
@@ -124,6 +132,16 @@ class MockCollection {
     const created = docs.map((d) => new MockDocument(d));
     this.records.push(...created);
     return created;
+  }
+
+  async updateMany(query = {}, update = {}) {
+    const matched = this.records.filter((doc) => this.matchesQuery(doc, query));
+    const setFields = update.$set || update;
+    for (const doc of matched) {
+      Object.assign(doc, setFields);
+      doc.updatedAt = new Date();
+    }
+    return { matchedCount: matched.length, modifiedCount: matched.length };
   }
 
   async deleteMany(query = {}) {

@@ -6,6 +6,8 @@ import ClientView from './components/ClientView';
 import OnboardingModal from './components/OnboardingModal';
 import SimulateEmailModal from './components/SimulateEmailModal';
 import AskAIDrawer from './components/AskAIDrawer';
+import ExecutiveBriefModal from './components/ExecutiveBriefModal';
+import AnalyticsModal from './components/AnalyticsModal';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
@@ -18,6 +20,10 @@ export default function App() {
     setIsSimulateOpen,
     isOnboardingOpen,
     setIsOnboardingOpen,
+    isBriefingOpen,
+    setIsBriefingOpen,
+    isAnalyticsOpen,
+    setIsAnalyticsOpen,
     toasts,
     removeToast,
   } = useApp();
@@ -42,6 +48,8 @@ export default function App() {
         if (isAskAIOpen) setIsAskAIOpen(false);
         if (isSimulateOpen) setIsSimulateOpen(false);
         if (isOnboardingOpen) setIsOnboardingOpen(false);
+        if (isBriefingOpen) setIsBriefingOpen(false);
+        if (isAnalyticsOpen) setIsAnalyticsOpen(false);
         return;
       }
 
@@ -51,6 +59,10 @@ export default function App() {
           setActiveRole('assistant');
         } else if (e.key === '2') {
           setActiveRole('client');
+        } else if (e.key.toLowerCase() === 'b') {
+          setIsBriefingOpen((prev) => !prev);
+        } else if (e.key.toLowerCase() === 'a') {
+          setIsAnalyticsOpen((prev) => !prev);
         }
       }
     };
@@ -61,10 +73,14 @@ export default function App() {
     isAskAIOpen,
     isSimulateOpen,
     isOnboardingOpen,
+    isBriefingOpen,
+    isAnalyticsOpen,
     setActiveRole,
     setIsAskAIOpen,
     setIsSimulateOpen,
     setIsOnboardingOpen,
+    setIsBriefingOpen,
+    setIsAnalyticsOpen,
   ]);
 
   return (
@@ -81,6 +97,8 @@ export default function App() {
       <OnboardingModal />
       <SimulateEmailModal />
       <AskAIDrawer />
+      <ExecutiveBriefModal />
+      <AnalyticsModal />
 
       {/* Floating Toast Notification Stack */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full">

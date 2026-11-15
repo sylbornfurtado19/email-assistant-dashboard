@@ -105,6 +105,47 @@ flowchart TD
 - Displays connection status, email address, last synced timestamp, and manual "Sync Now" triggers.
 - Transparently discloses simulated integrations for prototype evaluation.
 
+### 6. Elena's Morning Radar & Spoken Audio Briefing (Web Speech API)
+- **High-Level Executive Digest**: Synthesizes a daily briefing of pending high-stakes decisions, active blockers, and schedule commitments.
+- **🎧 Spoken Audio Narration**: Built using browser-native `window.speechSynthesis`. Elena can listen to Marcus's spoken briefing with real-time waveform animations and play/pause controls while on the move.
+- **1-Click Share / Copy**: Formats the briefing with clean bullet points for easy pasting into Slack, WhatsApp, or executive notes.
+
+### 7. AI Draft Polish Tools (Inline Reply Refinements)
+- In the Reply Composer for both Marcus and Elena, 1-click transformation pills instantly polish drafts:
+  - ✂️ **Make Shorter**: Strips repetitive pleasantries into a punchy 2-sentence executive response.
+  - 💼 **More Assertive**: Replaces tentative phrasing with firm executive boundary commitments.
+  - 📋 **Format as Bullets**: Restructures decisions, action items, and timelines into clear deliverables.
+  - 🤝 **Warm & Collaborative**: Enhances relationship rapport with partner cordiality.
+
+### 8. Assistant Power Tools: Multi-Select & Floating Batch Actions Bar
+- Checkbox multi-select across all threads with a "Select All" header toggle.
+- Floating bottom action bar (*Linear/Superhuman style*):
+  - Batch **Mark Handled**, Batch **Archive**, Batch **Mark Read**, and Batch **Reclassification**.
+
+### 9. Email Snooze with Auto-Wakeup
+- Postpone threads with presets: *Later Today (5:00 PM)*, *Tomorrow Morning (9:00 AM)*, *Next Week (Monday)*.
+- Dedicated **Snoozed** sidebar segment with countdown badges.
+- Automatically wakes up and un-snoozes threads when the designated timestamp elapses.
+
+### 10. Executive Triage Velocity & Workload Analytics Dashboard
+- **Executive Time Saved**: Calculates cumulative hours saved by assistant triage and AI filtering.
+- **Delegation Efficiency Ratio**: Interactive visual stacked bar displaying Marcus vs. Elena vs. Automated split.
+- **AI Confidence Tiers**: Visual distribution of High (>85%), Standard (75-84%), and Low (<75% Needs Review).
+- **Bottleneck Radar**: Identifies overdue threads where external counterparties have not responded.
+
+---
+
+## ⌨️ Superhuman Keyboard Shortcuts
+
+| Shortcut | Action |
+| :--- | :--- |
+| `⌘K` or `Ctrl+K` | Toggle **Ask AI Copilot Drawer** |
+| `1` | Switch to **Assistant Dashboard (Marcus Chen)** |
+| `2` | Switch to **Client Focus View (Elena Vance)** |
+| `B` | Open **Elena's Morning Radar & Audio Brief** |
+| `A` | Open **Triage Velocity & Executive Analytics** |
+| `Esc` | Close any open modal, drawer, or clear batch selections |
+
 ---
 
 ## ⚡ Quick Start & Setup Guide
@@ -165,7 +206,7 @@ npm run dev
 
 ## 🧪 Automated Testing
 
-Run the automated end-to-end test suite covering all 37 critical verification checkpoints:
+Run the automated end-to-end test suite covering all 49 critical verification checkpoints:
 ```bash
 npm test
 ```
@@ -180,6 +221,11 @@ The test suite validates:
 - Client delegation to assistant with custom instructions
 - Human override audit trail preservation
 - AI Inbox Copilot Q&A across live database telemetry
+- Executive Morning Radar & natural speech audio script generation
+- AI draft refinement engine (*Shorter, Assertive, Bulletize*)
+- Multi-thread batch triage operations
+- Email snooze & auto-wakeup persistence
+- Workload delegation metrics & triage velocity analytics
 
 ---
 

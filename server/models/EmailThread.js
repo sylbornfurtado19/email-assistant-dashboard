@@ -125,6 +125,14 @@ const emailThreadSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isSnoozed: {
+      type: Boolean,
+      default: false,
+    },
+    snoozedUntil: {
+      type: Date,
+      default: null,
+    },
     replyDraft: {
       type: replyDraftSchema,
       default: null,

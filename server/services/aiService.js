@@ -473,6 +473,142 @@ export class RuleBasedAIEngine {
       suggestedActions: ['Show all threads', 'Filter by Client to Reply'],
     };
   }
+
+  static generateExecutiveBrief(threads = []) {
+    const activeThreads = threads.filter((t) => !t.isCompleted && !t.isArchived);
+    const clientThreads = activeThreads.filter((t) => t.classification === 'client_to_reply');
+    const waitingThreads = activeThreads.filter((t) => t.category === 'waiting_for_response');
+    const meetingThreads = activeThreads.filter((t) => t.extractedEvent || t.category === 'meetings');
+    const assistantIntercepted = threads.filter(
+      (t) => t.classification === 'assistant_to_reply' || t.classification === 'no_reply_needed'
+    ).length;
+
+    const urgentDecisions = clientThreads.map((t) => {
+      const sender = t.messages?.[0]?.senderName || 'External Partner';
+      return {
+        threadId: t._id.toString(),
+        subject: t.subject,
+        sender,
+        whyClientNeeded: t.whyClientNeeded || t.aiReason || 'Direct CEO decision required.',
+        suggestedAction: t.suggestedAction || 'Review thread and provide executive sign-off.',
+        urgency: t.isImportant || /term sheet|valuation|lawsuit|press/i.test(t.subject) ? 'Urgent' : 'Normal',
+      };
+    });
+
+    const blockers = waitingThreads.map((t) => {
+      const sender = t.messages?.[0]?.senderName || 'External Party';
+      return {
+        threadId: t._id.toString(),
+        subject: t.subject,
+        sender,
+        waitingOn: t.aiReason || 'Awaiting external party response.',
+      };
+    });
+
+    const todayEvents = meetingThreads
+      .filter((t) => t.extractedEvent)
+      .map((t) => ({
+        threadId: t._id.toString(),
+        title: t.extractedEvent.title || t.subject,
+        date: t.extractedEvent.date || 'Today',
+        time: t.extractedEvent.time || 'TBD',
+        location: t.extractedEvent.location || 'Virtual / TBD',
+      }));
+
+    let assistantNote = `Elena, I've already triaged the inbox and handled ${assistantIntercepted} routine and vendor threads. `;
+    if (clientThreads.length > 0) {
+      assistantNote += `You have ${clientThreads.length} critical items requiring your direct personal call today—most urgently ${clientThreads[0].subject}. `;
+    } else {
+      assistantNote += 'You have zero pending executive blockers today! Inbox Zero for you. ';
+    }
+    if (blockers.length > 0) {
+      assistantNote += `We remain blocked on ${blockers.length} external items which I will follow up on.`;
+    }
+
+    const audioScript = `Good morning Elena. This is Marcus Chen with your executive morning brief for today. ` +
+      (clientThreads.length > 0
+        ? `You have ${clientThreads.length} items requiring your personal executive decision. Most urgently, ${clientThreads[0].subject}, from ${urgentDecisions[0]?.sender || 'the counterparty'}: ${urgentDecisions[0]?.whyClientNeeded || ''}. `
+        : `Your executive decision queue is completely clear this morning. `) +
+      (todayEvents.length > 0
+        ? `On your calendar, you have ${todayEvents[0].title} scheduled for ${todayEvents[0].date} at ${todayEvents[0].time}. `
+        : `No urgent meetings are scheduled for this morning. `) +
+      (blockers.length > 0
+        ? `Regarding our active blockers, we are still waiting on ${blockers[0].subject}. I will send a polite reminder by early afternoon. `
+        : '') +
+      `I have already intercepted and resolved ${assistantIntercepted} routine scheduling and vendor communications so you can stay focused. Have a great day.`;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      executiveName: 'Elena Vance',
+      assistantName: 'Marcus Chen',
+      headline: `Morning Executive Radar — ${clientThreads.length} Action${clientThreads.length === 1 ? '' : 's'} Required`,
+      stats: {
+        clientActionCount: clientThreads.length,
+        waitingCount: blockers.length,
+        meetingsCount: todayEvents.length,
+        assistantIntercepted,
+      },
+      urgentDecisions,
+      blockers,
+      todayEvents,
+      assistantNote,
+      audioScript,
+    };
+  }
+
+  static refineDraft({ originalDraft = '', refinementType = 'shorter', role = 'assistant', thread = {} }) {
+    if (!originalDraft) return '';
+
+    const isClient = role === 'client';
+    const signoff = isClient
+      ? '\n\nBest regards,\nElena Vance\nCEO, Vance Enterprises'
+      : '\n\nBest regards,\nMarcus Chen\nExecutive Assistant to Elena Vance';
+
+    switch (refinementType) {
+      case 'shorter': {
+        const shortSignoff = isClient ? '\n\nBest,\nElena Vance' : '\n\nBest,\nMarcus Chen';
+        const core = originalDraft
+          .replace(/^(Dear|Hi|Hello)[^,\n]+[,\n]+/i, '')
+          .replace(/(Thank you for reaching out|I hope this email finds you well|Thanks for following up)[^\n\.]*[\n\.]+/gi, '')
+          .replace(/\n\nBest regards[\s\S]*$/i, '')
+          .replace(/\n\nSincerely[\s\S]*$/i, '')
+          .trim();
+
+        const sentences = core.split(/(?<=[.?!])\s+/);
+        const condensed = sentences.slice(0, 2).join(' ');
+        return `Hi,\n\n${condensed || core}${shortSignoff}`;
+      }
+
+      case 'assertive': {
+        const text = originalDraft
+          .replace(/we might be able to/gi, 'we are prepared to')
+          .replace(/perhaps we could/gi, 'we propose to')
+          .replace(/I was hoping/gi, 'we require')
+          .replace(/if possible/gi, 'as required by our timeline')
+          .replace(/sorry for the delay/gi, 'thank you for your patience')
+          .replace(/\n\nBest regards[\s\S]*$/i, '')
+          .trim();
+
+        return `${text}\n\nOur position is firm on these parameters. Please confirm receipt so we can proceed.${signoff}`;
+      }
+
+      case 'bulletize': {
+        return `Hi,\n\nHere is our summary and agreed next steps:\n\n• **Decision / Status:** We have reviewed the latest details and are aligned in principle.\n• **Key Action Item:** Next deliverables must be finalized and submitted by our target timeline.\n• **Ownership:** Our team is prepared to execute upon receipt of confirmation.\n\nPlease let us know if any points require further alignment.${signoff}`;
+      }
+
+      case 'warm': {
+        const body = originalDraft
+          .replace(/^(Dear|Hi|Hello)[^,\n]+[,\n]+/i, '')
+          .replace(/\n\nBest regards[\s\S]*$/i, '')
+          .trim();
+
+        return `Hi,\n\nThank you so much for the thoughtful update! We really appreciate your close partnership and all the great momentum so far.\n\n${body}\n\nLooking forward to speaking soon, and have a fantastic rest of the week!${signoff}`;
+      }
+
+      default:
+        return originalDraft;
+    }
+  }
 }
 
 /**
@@ -617,6 +753,87 @@ Provide strict JSON:
     }
 
     return RuleBasedAIEngine.answerInboxQuestion(query, threads);
+  }
+
+  static async generateExecutiveBrief(threads = []) {
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const context = threads.slice(0, 15).map((t) => ({
+          subject: t.subject,
+          classification: t.classification,
+          whyClientNeeded: t.whyClientNeeded,
+          event: t.extractedEvent,
+          isImportant: t.isImportant,
+        }));
+
+        const prompt = `You are Marcus Chen, Executive Assistant to CEO Elena Vance. Generate a high-level morning executive briefing.
+Context:
+${JSON.stringify(context, null, 2)}
+
+Provide strict JSON:
+{
+  "headline": "Morning Executive Radar — short punchy summary",
+  "assistantNote": "Personal 2-sentence note from Marcus summarizing progress and today's priority focus",
+  "audioScript": "A natural, warm, professional spoken script (~100-140 words) for Marcus reading the morning briefing aloud to Elena."
+}`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        const parsed = safeJsonParse(response.text);
+        if (parsed && parsed.audioScript) {
+          const base = RuleBasedAIEngine.generateExecutiveBrief(threads);
+          return {
+            ...base,
+            headline: parsed.headline || base.headline,
+            assistantNote: parsed.assistantNote || base.assistantNote,
+            audioScript: parsed.audioScript || base.audioScript,
+          };
+        }
+      } catch (err) {
+        console.warn('[AI Service] Gemini brief failed, using rule engine:', err.message);
+      }
+    }
+
+    return RuleBasedAIEngine.generateExecutiveBrief(threads);
+  }
+
+  static async refineDraft({ originalDraft = '', refinementType = 'shorter', role = 'assistant', thread = {} }) {
+    if (process.env.GEMINI_API_KEY && originalDraft) {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const prompt = `You are an AI email assistant drafting for ${role === 'client' ? 'Elena Vance (CEO)' : 'Marcus Chen (Executive Assistant)'}.
+Refinement request: "${refinementType}" (options: shorter, assertive, bulletize, warm).
+Original Draft:
+${originalDraft}
+
+Return strict JSON:
+{
+  "refinedDraft": "The complete polished email text including salutation and signature"
+}`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        const parsed = safeJsonParse(response.text);
+        if (parsed && parsed.refinedDraft) {
+          return parsed.refinedDraft;
+        }
+      } catch (err) {
+        console.warn('[AI Service] Gemini refine draft failed, using rule engine:', err.message);
+      }
+    }
+
+    return RuleBasedAIEngine.refineDraft({ originalDraft, refinementType, role, thread });
   }
 }
 

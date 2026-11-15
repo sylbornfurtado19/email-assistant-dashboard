@@ -47,6 +47,11 @@ export default function AssistantDashboard() {
     setSortBy,
     stats,
     loading,
+    selectedThreadIds,
+    setSelectedThreadIds,
+    batchUpdateThreads,
+    snoozeThread,
+    refineDraft,
     overrideClassification,
     toggleThreadStatus,
     generateDraft,
@@ -61,6 +66,7 @@ export default function AssistantDashboard() {
   const [draftBody, setDraftBody] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
   const [showOverrideDropdown, setShowOverrideDropdown] = useState(false);
 
   // When selectedThread changes, populate composer with draft or subject
@@ -162,6 +168,7 @@ export default function AssistantDashboard() {
     { id: 'meetings', label: 'Meetings & Events', icon: Calendar, count: stats.upcomingMeetings, color: 'text-emerald-600' },
     { id: 'waiting_for_response', label: 'Waiting for Response', icon: Clock, count: stats.waitingForResponse, color: 'text-cyan-600' },
     { id: 'important', label: 'Important', icon: Star, count: stats.important, color: 'text-amber-500' },
+    { id: 'snoozed', label: 'Snoozed', icon: Clock, count: stats.snoozed, color: 'text-purple-600' },
     { id: 'no_reply_needed', label: 'No Reply Needed', icon: CheckCircle2, count: stats.noReplyNeeded, color: 'text-slate-500' },
     { id: 'completed', label: 'Handled / Archive', icon: Check, count: stats.completed, color: 'text-teal-600' },
   ];
@@ -306,9 +313,24 @@ export default function AssistantDashboard() {
             </div>
 
             <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
-              <span className="text-[11px] font-medium text-slate-600">
-                {threads.length} {threads.length === 1 ? 'thread' : 'threads'}
-              </span>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={threads.length > 0 && selectedThreadIds.length === threads.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedThreadIds(threads.map((t) => t._id));
+                    } else {
+                      setSelectedThreadIds([]);
+                    }
+                  }}
+                  title="Select all threads in segment"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="text-[11px] font-medium text-slate-600">
+                  {threads.length} {threads.length === 1 ? 'thread' : 'threads'}
+                </span>
+              </div>
 
               {/* Sort Selector */}
               <div className="flex items-center space-x-1">
@@ -360,6 +382,19 @@ export default function AssistantDashboard() {
                     {/* Top Row: Sender & Time */}
                     <div className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center space-x-1.5 truncate pr-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedThreadIds.includes(thread._id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedThreadIds((prev) => [...prev, thread._id]);
+                            } else {
+                              setSelectedThreadIds((prev) => prev.filter((id) => id !== thread._id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer mr-0.5"
+                        />
                         {!thread.isRead && (
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></span>
                         )}
@@ -425,6 +460,13 @@ export default function AssistantDashboard() {
                             Delegated
                           </span>
                         )}
+
+                        {thread.isSnoozed && (
+                          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-medium rounded-md flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 text-purple-600" />
+                            Snoozed
+                          </span>
+                        )}
                       </div>
 
                       {/* Confidence Meter */}
@@ -446,6 +488,51 @@ export default function AssistantDashboard() {
               })
             )}
           </div>
+
+          {/* Floating Batch Actions Bar */}
+          {selectedThreadIds.length > 0 && (
+            <div className="p-2.5 bg-slate-900 text-white border-t border-slate-800 flex items-center justify-between text-xs animate-in slide-in-from-bottom-2">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold px-1.5 py-0.5 bg-white/20 rounded text-[11px]">
+                  {selectedThreadIds.length}
+                </span>
+                <span className="text-[11px] text-slate-300">selected</span>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => batchUpdateThreads(selectedThreadIds, 'mark_handled')}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded font-medium text-[11px] transition flex items-center space-x-1"
+                  title="Mark all selected as handled"
+                >
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  <span className="hidden sm:inline">Handled</span>
+                </button>
+                <button
+                  onClick={() => batchUpdateThreads(selectedThreadIds, 'archive')}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded font-medium text-[11px] transition flex items-center space-x-1"
+                  title="Archive all selected"
+                >
+                  <Archive className="w-3 h-3 text-slate-400" />
+                  <span className="hidden sm:inline">Archive</span>
+                </button>
+                <button
+                  onClick={() => batchUpdateThreads(selectedThreadIds, 'mark_read')}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded font-medium text-[11px] transition flex items-center space-x-1"
+                  title="Mark all selected as read"
+                >
+                  <Mail className="w-3 h-3 text-blue-400" />
+                  <span className="hidden sm:inline">Read</span>
+                </button>
+                <button
+                  onClick={() => setSelectedThreadIds([])}
+                  className="p-1 text-slate-400 hover:text-white rounded"
+                  title="Deselect all"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Pane 3: Right Detail & Copilot Pane (5 cols) */}
@@ -515,6 +602,77 @@ export default function AssistantDashboard() {
                     >
                       <Archive className="w-3.5 h-3.5" />
                     </button>
+
+                    {/* Snooze Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setSnoozeMenuOpen((prev) => !prev)}
+                        className={`p-1.5 rounded-lg border transition ${
+                          selectedThread.isSnoozed
+                            ? 'bg-purple-50 text-purple-600 border-purple-200'
+                            : 'text-slate-400 hover:text-slate-600 border-slate-200'
+                        }`}
+                        title={selectedThread.isSnoozed ? 'Thread Snoozed (Click to manage)' : 'Snooze Thread'}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                      </button>
+                      {snoozeMenuOpen && (
+                        <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-xs">
+                          <div className="px-3 py-1 font-semibold text-[10px] text-slate-400 uppercase tracking-wider">
+                            Snooze Until
+                          </div>
+                          <button
+                            onClick={() => {
+                              const d = new Date();
+                              d.setHours(17, 0, 0, 0);
+                              snoozeThread(selectedThread._id, d.toISOString());
+                              setSnoozeMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 flex items-center justify-between"
+                          >
+                            <span>Later Today</span>
+                            <span className="text-[10px] text-slate-400">5:00 PM</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + 1);
+                              d.setHours(9, 0, 0, 0);
+                              snoozeThread(selectedThread._id, d.toISOString());
+                              setSnoozeMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 flex items-center justify-between"
+                          >
+                            <span>Tomorrow</span>
+                            <span className="text-[10px] text-slate-400">9:00 AM</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + 7);
+                              d.setHours(9, 0, 0, 0);
+                              snoozeThread(selectedThread._id, d.toISOString());
+                              setSnoozeMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 flex items-center justify-between"
+                          >
+                            <span>Next Week</span>
+                            <span className="text-[10px] text-slate-400">Monday</span>
+                          </button>
+                          {selectedThread.isSnoozed && (
+                            <button
+                              onClick={() => {
+                                snoozeThread(selectedThread._id, null);
+                                setSnoozeMenuOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 border-t border-slate-100 font-medium"
+                            >
+                              Clear Snooze
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <button
                       onClick={() =>
@@ -761,6 +919,81 @@ export default function AssistantDashboard() {
                     <span>Generate AI Draft</span>
                   </button>
                 </div>
+
+                {/* AI Draft Polish Pills */}
+                {draftBody && (
+                  <div className="flex items-center space-x-1.5 py-1 overflow-x-auto text-[11px]">
+                    <span className="text-slate-400 font-medium text-[10px]">AI Polish:</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsDrafting(true);
+                        const refined = await refineDraft({
+                          originalDraft: draftBody,
+                          refinementType: 'shorter',
+                          role: 'assistant',
+                          threadId: selectedThread._id,
+                        });
+                        setDraftBody(refined);
+                        setIsDrafting(false);
+                      }}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition"
+                    >
+                      ✂️ Shorter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsDrafting(true);
+                        const refined = await refineDraft({
+                          originalDraft: draftBody,
+                          refinementType: 'assertive',
+                          role: 'assistant',
+                          threadId: selectedThread._id,
+                        });
+                        setDraftBody(refined);
+                        setIsDrafting(false);
+                      }}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition"
+                    >
+                      💼 Assertive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsDrafting(true);
+                        const refined = await refineDraft({
+                          originalDraft: draftBody,
+                          refinementType: 'bulletize',
+                          role: 'assistant',
+                          threadId: selectedThread._id,
+                        });
+                        setDraftBody(refined);
+                        setIsDrafting(false);
+                      }}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition"
+                    >
+                      📋 Bulletize
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsDrafting(true);
+                        const refined = await refineDraft({
+                          originalDraft: draftBody,
+                          refinementType: 'warm',
+                          role: 'assistant',
+                          threadId: selectedThread._id,
+                        });
+                        setDraftBody(refined);
+                        setIsDrafting(false);
+                      }}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition"
+                    >
+                      🤝 Warmer
+                    </button>
+                  </div>
+                )}
 
                 {/* Editable Draft Body Textarea */}
                 <textarea

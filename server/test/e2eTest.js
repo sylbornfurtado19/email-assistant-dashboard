@@ -163,6 +163,50 @@ async function runTests() {
     assert(meetingAnswer.matchingThreadIds.length > 0, 'Meeting query returns meeting thread IDs');
     assert(meetingAnswer.answer.includes('Nov 20') || meetingAnswer.answer.includes('Grand Pavilion') || meetingAnswer.answer.includes('calendar'), 'Meeting query cites specific dates/locations');
 
+    // --- Test 9: Executive Briefing & Audio Generation ---
+    console.log('\n--- Test 9: Executive Morning Briefing ---');
+    const brief = await AIService.generateExecutiveBrief(allThreads);
+    assert(brief && typeof brief === 'object', 'Brief generated successfully');
+    assert(brief.urgentDecisions && brief.urgentDecisions.length > 0, 'Brief contains urgent decisions for Elena');
+    assert(brief.audioScript && brief.audioScript.length > 50, 'Brief synthesizes natural speech audio script');
+    assert(brief.audioScript.includes('Elena') || brief.audioScript.includes('Marcus'), 'Audio script includes personalized role salutation');
+
+    // --- Test 10: AI Draft Polish Tools ---
+    console.log('\n--- Test 10: AI Draft Refinement Engine ---');
+    const sampleDraft = 'Dear Partner, Thank you for reaching out. I was hoping that perhaps we could discuss the terms if possible. Best regards, Marcus Chen';
+    const shorter = await AIService.refineDraft({ originalDraft: sampleDraft, refinementType: 'shorter', role: 'assistant' });
+    assert(shorter.length < sampleDraft.length, 'Shorter refinement condenses draft length');
+    const assertive = await AIService.refineDraft({ originalDraft: sampleDraft, refinementType: 'assertive', role: 'assistant' });
+    assert(assertive.includes('firm') || assertive.includes('prepared'), 'Assertive refinement eliminates tentative phrasing');
+    const bulletized = await AIService.refineDraft({ originalDraft: sampleDraft, refinementType: 'bulletize', role: 'assistant' });
+    assert(bulletized.includes('•') || bulletized.includes('Action Item'), 'Bulletize refinement structures actionable points');
+
+    // --- Test 11: Batch Triage Actions ---
+    console.log('\n--- Test 11: Batch Triage Operations ---');
+    const testBatchThreads = allThreads.slice(0, 2);
+    const testBatchIds = testBatchThreads.map(t => t._id);
+    await EmailThread.updateMany({ _id: { $in: testBatchIds } }, { $set: { isCompleted: true } });
+    const verifiedBatch = await EmailThread.find({ _id: { $in: testBatchIds } });
+    assert(verifiedBatch.every(t => t.isCompleted === true), 'Batch operation marked multiple threads as completed');
+
+    // --- Test 12: Email Snooze & Recall ---
+    console.log('\n--- Test 12: Email Snooze & Recall ---');
+    const targetSnoozeThread = allThreads[0];
+    const snoozeTime = new Date(Date.now() + 3600000); // 1 hour in future
+    targetSnoozeThread.isSnoozed = true;
+    targetSnoozeThread.snoozedUntil = snoozeTime;
+    await targetSnoozeThread.save();
+    const fetchedSnoozed = await EmailThread.findById(targetSnoozeThread._id);
+    assert(fetchedSnoozed.isSnoozed === true, 'Thread successfully snoozed');
+    assert(fetchedSnoozed.snoozedUntil !== null, 'Snoozed until timestamp persisted');
+
+    // --- Test 13: Executive Workload & Triage Analytics ---
+    console.log('\n--- Test 13: Workload & Triage Analytics ---');
+    const totalCount = await EmailThread.countDocuments({});
+    const assistantHandled = await EmailThread.countDocuments({ classification: 'assistant_to_reply' });
+    assert(totalCount > 0, 'Analytics finds non-zero thread volume');
+    assert(assistantHandled > 0, 'Analytics accurately counts assistant delegated threads');
+
     console.log('\n====================================================');
     console.log(`📊 Test Summary: ${passed} PASSED, ${failed} FAILED`);
     console.log('====================================================');

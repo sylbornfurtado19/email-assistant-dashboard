@@ -29,6 +29,7 @@ export const AppProvider = ({ children }) => {
     noReplyNeeded: 0,
     totalActive: 0,
     completed: 0,
+    snoozed: 0,
   });
 
   // UI modal / drawer state
@@ -37,6 +38,9 @@ export const AppProvider = ({ children }) => {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isSimulateOpen, setIsSimulateOpen] = useState(false);
   const [isAskAIOpen, setIsAskAIOpen] = useState(false);
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [selectedThreadIds, setSelectedThreadIds] = useState([]);
   const [toasts, setToasts] = useState([]);
 
   // Toast notification helper
@@ -411,6 +415,104 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Fetch executive morning briefing
+  const fetchExecutiveBrief = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/briefing`);
+      const data = await res.json();
+      if (data.success) {
+        return data.brief;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching executive brief:', err);
+      addToast('Failed to generate executive briefing', 'error');
+      return null;
+    }
+  };
+
+  // Refine draft (shorter, assertive, bulletize, warm)
+  const refineDraft = async ({ originalDraft, refinementType, role, threadId }) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/refine-draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalDraft, refinementType, role, threadId }),
+      });
+      const data = await res.json();
+      if (data.success && data.refinedDraft) {
+        addToast(`Draft polished: ${refinementType}`, 'success');
+        return data.refinedDraft;
+      }
+      return originalDraft;
+    } catch (err) {
+      console.error('Error refining draft:', err);
+      addToast('Failed to refine draft', 'error');
+      return originalDraft;
+    }
+  };
+
+  // Batch update threads
+  const batchUpdateThreads = async (threadIds, action, newClassification) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/batch`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadIds, action, newClassification }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`Updated ${threadIds.length} threads (${action.replace(/_/g, ' ')})`, 'success');
+        setSelectedThreadIds([]);
+        fetchThreads();
+        fetchStats();
+      }
+    } catch (err) {
+      console.error('Error batch updating threads:', err);
+      addToast('Batch action failed', 'error');
+    }
+  };
+
+  // Snooze thread
+  const snoozeThread = async (threadId, snoozedUntil) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/${threadId}/snooze`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snoozedUntil }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(
+          snoozedUntil
+            ? `Snoozed until ${new Date(snoozedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'Snooze cleared',
+          'info'
+        );
+        fetchThreads();
+        fetchStats();
+      }
+    } catch (err) {
+      console.error('Error snoozing thread:', err);
+      addToast('Failed to snooze thread', 'error');
+    }
+  };
+
+  // Fetch deep analytics
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/emails/analytics`);
+      const data = await res.json();
+      if (data.success) {
+        return data.analytics;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      return null;
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -436,6 +538,12 @@ export const AppProvider = ({ children }) => {
         setIsSimulateOpen,
         isAskAIOpen,
         setIsAskAIOpen,
+        isBriefingOpen,
+        setIsBriefingOpen,
+        isAnalyticsOpen,
+        setIsAnalyticsOpen,
+        selectedThreadIds,
+        setSelectedThreadIds,
         toasts,
         addToast,
         removeToast,
@@ -449,6 +557,11 @@ export const AppProvider = ({ children }) => {
         connectAccount,
         disconnectAccount,
         resetWorkspace,
+        fetchExecutiveBrief,
+        refineDraft,
+        batchUpdateThreads,
+        snoozeThread,
+        fetchAnalytics,
         fetchThreads,
         fetchStats,
       }}
