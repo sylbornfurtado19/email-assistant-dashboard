@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Inbox,
@@ -8,11 +8,13 @@ import {
   Sparkles,
   RefreshCw,
   Mail,
-  Shield,
-  Layers,
-  ChevronDown,
+  MoreVertical,
   BarChart3,
   Volume2,
+  Settings,
+  ChevronDown,
+  Check,
+  HelpCircle,
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -29,6 +31,9 @@ export default function Navbar() {
     stats,
   } = useApp();
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
   const isAssistant = activeRole === 'assistant';
 
   // Connected accounts status
@@ -37,137 +42,179 @@ export default function Navbar() {
   const isGmailConnected = gmailAccount?.status === 'connected';
   const isOutlookConnected = outlookAccount?.status === 'connected';
 
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-15">
-          {/* Brand Logo & Title */}
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-xs border border-slate-800">
-              <Mail className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-semibold text-base sm:text-lg text-slate-900 tracking-tight">
-                  AetherInbox
-                </span>
-                <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/70 rounded-md tracking-wide">
-                  AI Triage
-                </span>
+    <header className="h-14 border-b border-slate-200 bg-white/95 backdrop-blur-sm z-30 shrink-0 px-4 flex items-center justify-between select-none">
+      {/* 1. Brand Identity & Sync Indicator */}
+      <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
+          <div className="w-7 h-7 rounded-md bg-slate-900 flex items-center justify-center text-indigo-400 shadow-sm">
+            <Mail className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-semibold text-sm text-slate-900 tracking-tight">
+            AetherInbox
+          </span>
+          <span className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 rounded border border-slate-200">
+            AI Triage
+          </span>
+        </div>
+
+        {/* Subtle Sync Pill */}
+        <button
+          onClick={() => setIsOnboardingOpen(true)}
+          className="hidden md:flex items-center space-x-1.5 px-2 py-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition text-[11px]"
+          title="Connected Accounts Status (Click to manage)"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span className="font-medium text-slate-600">
+            {isGmailConnected && isOutlookConnected
+              ? 'Gmail & Outlook Synced'
+              : isGmailConnected
+              ? 'Gmail Synced'
+              : 'Accounts Synced'}
+          </span>
+        </button>
+      </div>
+
+      {/* 2. Primary Segmented Role Switcher */}
+      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
+        <button
+          onClick={() => setActiveRole('assistant')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs transition-all ${
+            isAssistant
+              ? 'bg-white text-slate-900 shadow-sm font-semibold'
+              : 'text-slate-600 hover:text-slate-900 font-medium'
+          }`}
+        >
+          <UserCheck className={`w-3.5 h-3.5 ${isAssistant ? 'text-indigo-600' : 'text-slate-400'}`} />
+          <span>Assistant</span>
+          <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">Marcus</span>
+        </button>
+
+        <button
+          onClick={() => setActiveRole('client')}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs transition-all relative ${
+            !isAssistant
+              ? 'bg-white text-slate-900 shadow-sm font-semibold'
+              : 'text-slate-600 hover:text-slate-900 font-medium'
+          }`}
+        >
+          <User className={`w-3.5 h-3.5 ${!isAssistant ? 'text-amber-600' : 'text-slate-400'}`} />
+          <span>Client</span>
+          <span className="hidden sm:inline text-[10px] text-slate-400 font-normal">Elena</span>
+          {stats.clientToReply > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-bold rounded-full">
+              {stats.clientToReply}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* 3. Primary Actions & Clean Overflow Menu */}
+      <div className="flex items-center space-x-2">
+        {/* Ask AI Copilot (High Priority) */}
+        <button
+          onClick={() => setIsAskAIOpen(true)}
+          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-sm"
+          title="Ask AI Copilot natural language questions (⌘K)"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          <span className="hidden sm:inline">Ask AI</span>
+          <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono text-slate-300 bg-white/10 rounded border border-white/15">
+            ⌘K
+          </kbd>
+        </button>
+
+        {/* Secondary Actions Dropdown Menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg border border-slate-200/80 transition"
+            title="More actions and workspace tools"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                Workspace Tools
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Elena Vance (CEO) & Marcus Chen (EA)
-              </p>
+
+              <button
+                onClick={() => {
+                  setIsBriefingOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center justify-between transition"
+              >
+                <div className="flex items-center space-x-2">
+                  <Volume2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Elena's Morning Radar</span>
+                </div>
+                <kbd className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1 py-0.5 rounded">B</kbd>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsAnalyticsOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center justify-between transition"
+              >
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Workload Analytics</span>
+                </div>
+                <kbd className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1 py-0.5 rounded">A</kbd>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsSimulateOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center space-x-2 transition"
+              >
+                <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Simulate Incoming Email</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsOnboardingOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center space-x-2 transition"
+              >
+                <Settings className="w-3.5 h-3.5 text-slate-500" />
+                <span>Connected Accounts</span>
+              </button>
+
+              <div className="border-t border-slate-100 my-1"></div>
+
+              <button
+                onClick={() => {
+                  resetWorkspace();
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center space-x-2 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reset Demo Dataset</span>
+              </button>
             </div>
-          </div>
-
-          {/* Center: Role Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
-            <button
-              onClick={() => setActiveRole('assistant')}
-              className={`flex items-center space-x-1.5 px-3 py-1.2 rounded-md text-xs font-medium transition-all ${
-                isAssistant
-                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <UserCheck className={`w-3.5 h-3.5 ${isAssistant ? 'text-indigo-600' : 'text-slate-400'}`} />
-              <span>Assistant</span>
-              <span className="hidden md:inline text-[10px] text-slate-400 font-normal">(Marcus)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveRole('client')}
-              className={`flex items-center space-x-1.5 px-3 py-1.2 rounded-md text-xs font-medium transition-all relative ${
-                !isAssistant
-                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <User className={`w-3.5 h-3.5 ${!isAssistant ? 'text-amber-600' : 'text-slate-400'}`} />
-              <span>Client</span>
-              <span className="hidden md:inline text-[10px] text-slate-400 font-normal">(Elena)</span>
-              {stats.clientToReply > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-bold rounded-full">
-                  {stats.clientToReply}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Right Actions */}
-          <div className="flex items-center space-x-2">
-            {/* Account Sync Pill */}
-            <button
-              onClick={() => setIsOnboardingOpen(true)}
-              title="Click to view connected accounts & simulated sync"
-              className="hidden lg:flex items-center space-x-2 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 transition"
-            >
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="font-medium">
-                {isGmailConnected && isOutlookConnected
-                  ? 'Gmail & Outlook Synced'
-                  : isGmailConnected
-                  ? 'Gmail Synced'
-                  : 'Sync Accounts'}
-              </span>
-            </button>
-
-            {/* Morning Radar & Audio Brief */}
-            <button
-              onClick={() => setIsBriefingOpen(true)}
-              className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 rounded-lg text-xs font-semibold transition"
-              title="Elena's Morning Radar & Audio Briefing"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>Briefing</span>
-            </button>
-
-            {/* Executive Analytics */}
-            <button
-              onClick={() => setIsAnalyticsOpen(true)}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium transition"
-              title="Executive Triage & Workload Analytics"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden md:inline">Analytics</span>
-            </button>
-
-            {/* Simulate Email Trigger */}
-            <button
-              onClick={() => setIsSimulateOpen(true)}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 rounded-lg text-xs font-medium transition shadow-2xs"
-              title="Simulate incoming email with live AI classification"
-            >
-              <Zap className="w-3.5 h-3.5 text-indigo-600 fill-indigo-600" />
-              <span className="hidden sm:inline">Simulate Email</span>
-            </button>
-
-            {/* Ask AI Copilot Trigger */}
-            <button
-              onClick={() => setIsAskAIOpen(true)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-xs"
-              title="Ask AI Copilot natural language questions about your inbox (Ctrl+K / ⌘K)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Ask AI</span>
-              <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono text-slate-300 bg-white/10 rounded border border-white/15">
-                ⌘K
-              </kbd>
-            </button>
-
-            {/* Reset Workspace Demo Data */}
-            <button
-              onClick={resetWorkspace}
-              title="Reset Demo Dataset (12 realistic threads)"
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </header>

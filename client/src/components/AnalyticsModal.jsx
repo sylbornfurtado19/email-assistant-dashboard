@@ -37,7 +37,7 @@ export default function AnalyticsModal() {
   if (!isAnalyticsOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
@@ -253,7 +253,7 @@ export default function AnalyticsModal() {
         <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-end">
           <button
             onClick={() => setIsAnalyticsOpen(false)}
-            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-xs"
+            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-sm"
           >
             Close Analytics
           </button>

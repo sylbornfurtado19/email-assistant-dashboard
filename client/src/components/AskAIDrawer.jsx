@@ -98,7 +98,7 @@ export default function AskAIDrawer() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex justify-end">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-sm flex justify-end">
       <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 border-l border-slate-200">
         {/* Drawer Header */}
         <div className="p-4 border-b border-slate-200 bg-slate-900 text-white flex items-center justify-between">
@@ -129,7 +129,7 @@ export default function AskAIDrawer() {
               <button
                 key={i}
                 onClick={() => handleAsk(q)}
-                className="text-[11px] px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg transition whitespace-nowrap shadow-2xs"
+                className="text-[11px] px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg transition whitespace-nowrap shadow-sm"
               >
                 {q}
               </button>
@@ -147,7 +147,7 @@ export default function AskAIDrawer() {
               <div
                 className={`max-w-[90%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed ${
                   msg.sender === 'user'
-                    ? 'bg-slate-900 text-white rounded-br-none shadow-2xs'
+                    ? 'bg-slate-900 text-white rounded-br-none shadow-sm'
                     : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200/80'
                 }`}
               >
@@ -164,7 +164,7 @@ export default function AskAIDrawer() {
                     <button
                       key={thread._id}
                       onClick={() => handleSelectThread(thread)}
-                      className="w-full text-left p-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-2xs rounded-xl transition flex items-start justify-between group"
+                      className="w-full text-left p-2.5 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm rounded-xl transition flex items-start justify-between group"
                     >
                       <div className="flex-1 min-w-0 pr-2">
                         <div className="flex items-center space-x-1.5 mb-1">
@@ -217,7 +217,7 @@ export default function AskAIDrawer() {
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
               placeholder="Ask about blockers, meetings, assignments..."
-              className="flex-1 px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+              className="flex-1 px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <button
               type="submit"

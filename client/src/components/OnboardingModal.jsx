@@ -68,7 +68,7 @@ export default function OnboardingModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="relative bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header Banner */}
         <div className="bg-slate-900 px-6 py-5 text-white relative">
@@ -146,7 +146,7 @@ export default function OnboardingModal() {
                 <button
                   disabled={connectingProvider === 'gmail'}
                   onClick={() => handleSimulateOAuth('gmail')}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-2xs"
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm"
                 >
                   {connectingProvider === 'gmail' ? (
                     <RefreshCw className="w-3 h-3 animate-spin" />
@@ -200,7 +200,7 @@ export default function OnboardingModal() {
                 <button
                   disabled={connectingProvider === 'outlook'}
                   onClick={() => handleSimulateOAuth('outlook')}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-2xs"
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm"
                 >
                   {connectingProvider === 'outlook' ? (
                     <RefreshCw className="w-3 h-3 animate-spin" />
@@ -252,7 +252,7 @@ export default function OnboardingModal() {
 
             <button
               onClick={() => setIsOnboardingOpen(false)}
-              className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-2xs transition"
+              className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm transition"
             >
               Enter Dashboard
             </button>

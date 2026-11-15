@@ -129,10 +129,10 @@ export default function ExecutiveBriefModal() {
   if (!isBriefingOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100 bg-linear-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center border border-amber-400/30">
               <Sparkles className="w-5 h-5" />
@@ -171,7 +171,7 @@ export default function ExecutiveBriefModal() {
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={handlePlayAudio}
-                    className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-xs transition shrink-0"
+                    className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm transition shrink-0"
                     title={isPlaying ? 'Pause spoken brief' : 'Listen to spoken brief'}
                   >
                     {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
@@ -205,7 +205,7 @@ export default function ExecutiveBriefModal() {
                   )}
                   <button
                     onClick={handleCopyBrief}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium transition shadow-2xs"
+                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium transition shadow-sm"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                     <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -259,7 +259,7 @@ export default function ExecutiveBriefModal() {
                   {brief.urgentDecisions.map((dec, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-white border border-amber-200/90 rounded-xl shadow-2xs hover:border-amber-300 transition"
+                      className="p-3 bg-white border border-amber-200/90 rounded-xl shadow-sm hover:border-amber-300 transition"
                     >
                       <div className="flex items-start justify-between">
                         <div className="space-y-0.5 pr-2">
@@ -279,7 +279,7 @@ export default function ExecutiveBriefModal() {
                             setIsBriefingOpen(false);
                             setActiveRole('client');
                           }}
-                          className="px-2.5 py-1 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-2xs transition shrink-0"
+                          className="px-2.5 py-1 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-sm transition shrink-0"
                         >
                           Review Card
                         </button>
@@ -322,7 +322,7 @@ export default function ExecutiveBriefModal() {
           </p>
           <button
             onClick={() => setIsBriefingOpen(false)}
-            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-xs"
+            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow-sm"
           >
             Got it, Let's Work
           </button>
